@@ -46,6 +46,42 @@ const RATE_LIMIT_WINDOW = 60;  // window size in seconds
 // In-memory fallback for local Bun development (not shared across instances)
 const localRateMap = new Map<string, RateLimitEntry>();
 
+// ─── Metrics ─────────────────────────────────────────────────────────────────
+// In-memory only — counters reset on server restart.
+// In Cloudflare Workers each isolate is stateless, so counters are per-isolate.
+
+type PathStat = {
+  count:       number;
+  latencySum:  number; // ms accumulated — divide by count for average
+  errors:      number; // 5xx responses
+  rateLimited: number; // 429 responses
+};
+
+type GatewayMetrics = {
+  startedAt:        number; // Date.now() at startup
+  totalRequests:    number;
+  totalRateLimited: number;
+  totalErrors:      number;
+  paths:            Record<string, PathStat>;
+};
+
+const gatewayMetrics: GatewayMetrics = {
+  startedAt:        Date.now(),
+  totalRequests:    0,
+  totalRateLimited: 0,
+  totalErrors:      0,
+  paths:            {},
+};
+
+// Collapse dynamic segments (UUIDs, numeric IDs) so metrics aren't unbounded.
+// /pages/550e8400-…/blocks  →  /pages/:id/blocks
+// /pages/42               →  /pages/:id
+function normalizePath(path: string): string {
+  return path
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+    .replace(/\/\d+(?=\/|$)/g, '/:id');
+}
+
 async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<RateLimitResult> {
   const now = Date.now();
   let entry: RateLimitEntry;
@@ -170,12 +206,32 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('*', cors());
 
+// Metrics middleware — wraps the full handler chain so it captures the final
+// response status (including 429 from the rate-limit middleware below).
+// Registered BEFORE rate-limit so it encloses the entire request lifecycle.
+const METRICS_SKIP = new Set(['/metrics', '/docs', '/openapi.json', '/health', '/rate-limit/status']);
+app.use('*', async (c, next) => {
+  if (METRICS_SKIP.has(c.req.path)) return next();
+
+  const start = Date.now();
+  await next();
+  const latency  = Date.now() - start;
+  const status   = c.res.status;
+  const normPath = normalizePath(c.req.path);
+
+  gatewayMetrics.totalRequests++;
+  const stat = (gatewayMetrics.paths[normPath] ??= { count: 0, latencySum: 0, errors: 0, rateLimited: 0 });
+  stat.count++;
+  stat.latencySum += latency;
+  if (status === 429) { stat.rateLimited++; gatewayMetrics.totalRateLimited++; }
+  else if (status >= 500) { stat.errors++;  gatewayMetrics.totalErrors++; }
+});
+
 // Rate limit middleware — uses KV in Cloudflare Workers, in-memory locally
 app.use('*', async (c, next) => {
   // cf-connecting-ip is set by Cloudflare and cannot be spoofed
   // These endpoints are exempt from rate limiting
-  const exemptPaths = ['/rate-limit/status', '/docs', '/openapi.json', '/health'];
-  if (exemptPaths.includes(c.req.path)) return next();
+  if (METRICS_SKIP.has(c.req.path)) return next();
 
   const ip =
     c.req.header('cf-connecting-ip') ||
@@ -204,6 +260,34 @@ app.get('/health', (c) => c.json({ status: 'ok', service: 'api-gateway' }));
 
 // Serve the parsed OpenAPI spec as JSON (consumed by Swagger UI)
 app.get('/openapi.json', (c) => c.json(openapiSpec));
+
+// Real-time gateway statistics — not rate-limited, no auth required
+app.get('/metrics', (c) => {
+  const now           = Date.now();
+  const uptimeSeconds = Math.floor((now - gatewayMetrics.startedAt) / 1000);
+
+  // Build per-path summary sorted by hit count (descending)
+  const paths = Object.entries(gatewayMetrics.paths)
+    .map(([path, s]) => ({
+      path,
+      requests:     s.count,
+      avgLatencyMs: s.count > 0 ? Math.round(s.latencySum / s.count) : 0,
+      errors:       s.errors,
+      rateLimited:  s.rateLimited,
+    }))
+    .sort((a, b) => b.requests - a.requests);
+
+  return c.json({
+    startedAt:        new Date(gatewayMetrics.startedAt).toISOString(),
+    uptimeSeconds,
+    totalRequests:    gatewayMetrics.totalRequests,
+    totalRateLimited: gatewayMetrics.totalRateLimited,
+    totalErrors:      gatewayMetrics.totalErrors,
+    paths,
+    note: 'Counters are in-memory and reset on server restart. ' +
+          'In Cloudflare Workers, each isolate maintains its own counters.',
+  });
+});
 
 // Interactive Swagger UI — not rate-limited, no auth required
 //
