@@ -4,25 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/index.ts",
+    "dev": "wrangler dev --port 8080",
     "deploy": "wrangler deploy",
     "cf:login": "wrangler login",
     "cf:secret": "wrangler secret put JWT_SECRET",
-    "build": "tsc -p tsconfig.json",
-    "start": "bun run ./dist/index.js"
+    "build": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/swagger-ui": "^0.6.1",
     "@hono/valibot-validator": "^0.6.1",
-    "hono": "^3.1.2",
+    "hono": "^4.12.22",
     "js-yaml": "^4.1.1",
     "valibot": "^1.4.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",
-    "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "typescript": "^5.4.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.94.0"
   }
 }

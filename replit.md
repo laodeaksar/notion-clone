@@ -5,7 +5,7 @@ A full-stack Notion clone built as a monorepo with a SvelteKit frontend, microse
 ## Architecture
 
 - **Frontend** (`apps/web`): SvelteKit + Tailwind CSS + TipTap editor with Yjs real-time collaboration
-- **API Gateway** (`apps/api-gateway`): Hono on Bun — routes all frontend requests to microservices
+- **API Gateway** (`apps/api-gateway`): **Hono v4 + Valibot on Cloudflare Workers** — rate limiting (CF KV), JWT auto-refresh, metrics endpoint, proxies to all microservices. Deploy with `pnpm --filter @workspace/api-gateway deploy`.
 - **Auth Service** (`services/auth-service`): **Hono + Valibot on Cloudflare Workers** — JWT auth (Web Crypto API), user registration/login. Deploy with `pnpm --filter @workspace/auth-service deploy`.
 - **Page Service** (`services/page-service`): **Hono + Valibot on Cloudflare Workers** — page CRUD with auth middleware. Deploy with `pnpm --filter @workspace/page-service deploy`.
 - **Block Service** (`services/block-service`): **Hono + Valibot on Cloudflare Workers** — content blocks CRUD with auth middleware. Deploy with `pnpm --filter @workspace/block-service deploy`.

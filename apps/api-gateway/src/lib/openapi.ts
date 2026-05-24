@@ -1,16 +1,7 @@
 import jsYaml from 'js-yaml';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+// Bundled as a Text module by wrangler (see [[rules]] in wrangler.toml).
+// TypeScript declaration: src/types/yaml.d.ts
+import openapiYaml from '../../openapi.yaml';
 
-function loadSpec(): object {
-  try {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const yaml = readFileSync(join(dir, '../../openapi.yaml'), 'utf-8');
-    return jsYaml.load(yaml) as object;
-  } catch {
-    return {};
-  }
-}
-
-export const openapiSpec: object = loadSpec();
+export const openapiSpec: object =
+  (jsYaml.load(openapiYaml as string) as object) ?? {};

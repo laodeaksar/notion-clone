@@ -52,5 +52,6 @@ FILE_SERVICE_URL  = "https://GANTI-DENGAN-URL-FILE-SERVICE"
 # Dengan ini, import statis seperti `import yaml from '../openapi.yaml'`
 # akan bekerja di Workers (file dibundel sebagai string saat build time).
 [[rules]]
-type  = "Text"
-globs = ["**/*.yaml"]
+type        = "Text"
+globs       = ["**/*.yaml"]
+fallthrough = false
