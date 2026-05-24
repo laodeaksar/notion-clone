@@ -1,24 +1,7 @@
-export type UUID = string;
+export type { UUID } from './types/legacy';
 
-export interface User {
-  id: UUID;
-  email: string;
-  name?: string;
-}
-
-export interface Page {
-  id: UUID;
-  title: string;
-  parentId?: UUID | null;
-  createdAt: string;
-  updatedAt: string;
-  content?: any;
-}
-
-export interface Block {
-  id: UUID;
-  pageId: UUID;
-  type: string;
-  content: any;
-  order: number;
-}
+export * from './types/block.types';
+export * from './types/page.types';
+export * from './types/auth.types';
+export * from './types/file.types';
+export * from './middleware/auth';

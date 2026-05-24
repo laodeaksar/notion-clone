@@ -10,7 +10,8 @@
   "dependencies": {
     "elysia": "^0.6.0",
     "zod": "^3.22.2",
-    "cloudinary": "^1.37.0"
+    "cloudinary": "^1.37.0",
+    "@workspace/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

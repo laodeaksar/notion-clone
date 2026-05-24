@@ -12,7 +12,8 @@
     "zod": "^3.22.2",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.0.0",
-    "@workspace/db": "workspace:*"
+    "@workspace/db": "workspace:*",
+    "@workspace/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
