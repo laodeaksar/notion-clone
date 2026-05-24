@@ -14,24 +14,29 @@ type Bindings = {
 
 type RateLimitEntry = { count: number; until: number };
 
+type RateLimitResult = {
+  allowed:   boolean;
+  remaining: number;
+  resetAt:   number; // Unix timestamp in seconds
+};
+
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
 
-const RATE_LIMIT_MAX    = 100;   // max requests
-const RATE_LIMIT_WINDOW = 60;    // seconds
+const RATE_LIMIT_MAX    = 100; // max requests per window
+const RATE_LIMIT_WINDOW = 60;  // window size in seconds
 
 // In-memory fallback for local Bun development (not shared across instances)
 const localRateMap = new Map<string, RateLimitEntry>();
 
-async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<boolean> {
+async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<RateLimitResult> {
   const now = Date.now();
+  let entry: RateLimitEntry;
 
   if (kv) {
     // ── Cloudflare KV (persistent, shared across all Workers instances) ──
     const key = `rl:${ip}`;
     const raw = await kv.get(key);
-    const entry: RateLimitEntry = raw
-      ? JSON.parse(raw)
-      : { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
+    entry = raw ? JSON.parse(raw) : { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
 
     if (now > entry.until) {
       entry.count = 0;
@@ -39,22 +44,25 @@ async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<boolean> {
     }
     entry.count++;
 
-    // TTL auto-expires the key so KV doesn't accumulate stale entries
+    // expirationTtl auto-expires the key — no stale entries accumulate in KV
     const ttlSeconds = Math.max(1, Math.ceil((entry.until - now) / 1000));
     await kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds });
-
-    return entry.count <= RATE_LIMIT_MAX;
   } else {
     // ── In-memory fallback for local Bun dev ──
-    const entry = localRateMap.get(ip) ?? { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
+    entry = localRateMap.get(ip) ?? { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
     if (now > entry.until) {
       entry.count = 0;
       entry.until = now + RATE_LIMIT_WINDOW * 1000;
     }
     entry.count++;
     localRateMap.set(ip, entry);
-    return entry.count <= RATE_LIMIT_MAX;
   }
+
+  return {
+    allowed:   entry.count <= RATE_LIMIT_MAX,
+    remaining: Math.max(0, RATE_LIMIT_MAX - entry.count),
+    resetAt:   Math.ceil(entry.until / 1000),
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -122,10 +130,15 @@ app.use('*', async (c, next) => {
     'unknown';
 
   const kv = (c.env as Partial<Bindings>)?.RATE_LIMIT_KV;
-  const allowed = await checkRateLimit(ip, kv);
+  const { allowed, remaining, resetAt } = await checkRateLimit(ip, kv);
+
+  // Always attach rate limit headers so clients can track their quota
+  c.header('X-RateLimit-Limit',     String(RATE_LIMIT_MAX));
+  c.header('X-RateLimit-Remaining', String(remaining));
+  c.header('X-RateLimit-Reset',     String(resetAt));
 
   if (!allowed) {
-    return c.json({ error: 'Too many requests' }, 429);
+    return c.json({ error: 'Too many requests', retryAfter: resetAt }, 429);
   }
   return next();
 });
