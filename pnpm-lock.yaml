@@ -26,6 +26,9 @@ importers:
       '@hono/swagger-ui':
         specifier: ^0.6.1
         version: 0.6.1(hono@3.12.12)
+      '@hono/valibot-validator':
+        specifier: ^0.6.1
+        version: 0.6.1(hono@3.12.12)(valibot@1.4.0(typescript@5.9.3))
       hono:
         specifier: ^3.1.2
         version: 3.12.12
@@ -1092,6 +1095,12 @@ packages:
     resolution: {integrity: sha512-sJTvldu1GPeEPfyeLG7gRj+W4vEuD+JDi+JjJ3TJs/DvMUtBLs0KJO5yokGegWWdy5qrbdnQGekbhgNRmPmYKQ==}
     peerDependencies:
       hono: '>=4.0.0'
+
+  '@hono/valibot-validator@0.6.1':
+    resolution: {integrity: sha512-rqKhQJI8IVR8gRRNHHf2wGtIT7sKEqV1KoGL5f2SocNytl+tBNn4EtRu4zfk/D6axgWSswnaxeiuJhM5yNFrCg==}
+    peerDependencies:
+      hono: '>=3.9.0'
+      valibot: ^1.0.0 || ^1.0.0-beta.4 || ^1.0.0-rc
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -5943,6 +5952,11 @@ snapshots:
   '@hono/swagger-ui@0.6.1(hono@3.12.12)':
     dependencies:
       hono: 3.12.12
+
+  '@hono/valibot-validator@0.6.1(hono@3.12.12)(valibot@1.4.0(typescript@5.9.3))':
+    dependencies:
+      hono: 3.12.12
+      valibot: 1.4.0(typescript@5.9.3)
 
   '@humanfs/core@0.19.1': {}
 
