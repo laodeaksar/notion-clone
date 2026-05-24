@@ -11,6 +11,46 @@ docsRoutes.get('/health', (c) =>
   c.json({ status: 'ok', service: 'api-gateway' })
 );
 
+docsRoutes.get('/ping', async (c) => {
+  const cf      = (c.req.raw as any).cf;
+  const started = Date.now();
+
+  const services: Record<string, string> = {
+    auth:  (c.env as any)?.AUTH_SERVICE_URL  ?? 'http://localhost:8083',
+    page:  (c.env as any)?.PAGE_SERVICE_URL  ?? 'http://localhost:8082',
+    block: (c.env as any)?.BLOCK_SERVICE_URL ?? 'http://localhost:8081',
+    file:  (c.env as any)?.FILE_SERVICE_URL  ?? 'http://localhost:8084'
+  };
+
+  const checks = await Promise.all(
+    Object.entries(services).map(async ([name, url]) => {
+      const t0 = Date.now();
+      try {
+        const res  = await fetch(`${url}/ping`, { signal: AbortSignal.timeout(3000) });
+        const body = res.ok ? await res.json() : null;
+        return { name, status: res.ok ? 'ok' : 'error', latencyMs: Date.now() - t0, region: (body as any)?.region ?? null };
+      } catch {
+        return { name, status: 'unreachable', latencyMs: Date.now() - t0, region: null };
+      }
+    })
+  );
+
+  const allOk = checks.every((s) => s.status === 'ok');
+
+  return c.json(
+    {
+      status:        allOk ? 'ok' : 'degraded',
+      service:       'api-gateway',
+      version:       '0.0.1',
+      region:        cf?.colo ?? 'local',
+      gatewayUptimeMs: Date.now() - started,
+      timestamp:     new Date().toISOString(),
+      upstreams:     checks
+    },
+    allOk ? 200 : 207
+  );
+});
+
 docsRoutes.get('/openapi.json', (c) => c.json(openapiSpec));
 
 docsRoutes.get('/metrics', (c) => {

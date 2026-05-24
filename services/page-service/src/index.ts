@@ -9,6 +9,17 @@ const app = new Hono<HonoEnv>();
 app.use('*', logger());
 app.use('*', cors());
 
+app.get('/ping', (c) => {
+  const cf = (c.req.raw as any).cf;
+  return c.json({
+    status:    'ok',
+    service:   'page-service',
+    version:   '0.0.1',
+    region:    cf?.colo ?? 'local',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.route('/', routes);
 
 app.onError((err, c) => {
