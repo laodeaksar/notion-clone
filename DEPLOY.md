@@ -1,44 +1,156 @@
 # Panduan Deploy ke Cloudflare Workers
 
-Deploy **tanpa terminal** menggunakan Cloudflare Workers Dashboard.
+Ada **dua cara** deploy — pilih salah satu:
+
+| | GitHub Actions (otomatis) | Dashboard Manual |
+|---|---|---|
+| Trigger | Push ke `main` → deploy otomatis | Copy-paste bundle secara manual |
+| Setup awal | ~10 menit | ~20 menit |
+| Deploy berikutnya | Otomatis | Manual setiap kali ada update |
+| **Rekomendasi** | ✅ | Hanya jika tidak pakai Git |
 
 ---
 
-## Prasyarat
+## Cara 1 — GitHub Actions (Otomatis)
 
-1. Akun Cloudflare (gratis): [dash.cloudflare.com](https://dash.cloudflare.com)
-2. Database Neon (gratis): [neon.tech](https://neon.tech) — untuk auth/page/block service
-3. Akun Cloudinary (gratis): [cloudinary.com](https://cloudinary.com) — untuk file service
-
----
-
-## Urutan Deploy (penting — ikuti urutan ini)
-
-```
-1. auth-service
-2. page-service
-3. block-service
-4. file-service
-5. api-gateway  ← deploy terakhir, butuh URL keempat service di atas
-```
+### Prasyarat
+1. Repo ini sudah di-push ke GitHub
+2. Akun Cloudflare (gratis): [dash.cloudflare.com](https://dash.cloudflare.com)
+3. Database Neon: [neon.tech](https://neon.tech) — untuk auth/page/block service
+4. Akun Cloudinary: [cloudinary.com](https://cloudinary.com) — untuk file service
 
 ---
 
-## Cara Deploy Setiap Service
+### Langkah 1 — Buat Cloudflare API Token
 
-### Langkah A — Buat Worker baru di Dashboard
+1. Buka [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Klik **Create Token** → pilih template **Edit Cloudflare Workers**
+3. Klik **Continue to Summary** → **Create Token**
+4. **Salin token** — hanya tampil sekali!
 
-1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
-2. Klik **Create** → **Create Worker**
-3. Beri nama sesuai tabel di bawah, klik **Deploy**
-4. Klik **Edit code** untuk membuka editor online
+---
 
-### Langkah B — Upload kode yang sudah di-bundle
+### Langkah 2 — Siapkan KV Namespace (untuk rate limiting gateway)
 
-Di Replit, jalankan perintah ini di shell untuk masing-masing service:
+Langkah ini hanya perlu dilakukan **sekali**:
+
+1. Di Cloudflare dashboard → **Workers & Pages** → **KV**
+2. Klik **Create namespace** → beri nama `RATE_LIMIT_KV` → **Add**
+3. Salin **Namespace ID** yang muncul
+4. Buka file `apps/api-gateway/wrangler.toml`, ganti:
+   ```toml
+   id = "GANTI-DENGAN-ID-DARI-WRANGLER"
+   ```
+   dengan ID yang baru disalin, lalu commit & push.
+
+---
+
+### Langkah 3 — Set Secrets di GitHub
+
+Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
+
+#### Tab "Secrets" — tambahkan satu per satu:
+
+| Nama Secret | Nilai |
+|-------------|-------|
+| `CLOUDFLARE_API_TOKEN` | Token dari Langkah 1 |
+| `CLOUDFLARE_ACCOUNT_ID` | Salin dari [dash.cloudflare.com](https://dash.cloudflare.com) → kanan bawah: *Account ID* |
+| `DATABASE_URL` | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` |
+| `JWT_SECRET` | String acak panjang (min 32 karakter) |
+| `JWT_REFRESH_SECRET` | String acak panjang **berbeda** dari JWT_SECRET |
+| `CLOUDINARY_API_KEY` | Dari Cloudinary dashboard |
+| `CLOUDINARY_API_SECRET` | Dari Cloudinary dashboard |
+
+#### Tab "Variables" — tambahkan (bukan secret, nilai boleh dilihat):
+
+| Nama Variable | Nilai |
+|---------------|-------|
+| `AUTH_SERVICE_URL` | `https://auth-service.YOUR-SUBDOMAIN.workers.dev` |
+| `PAGE_SERVICE_URL` | `https://page-service.YOUR-SUBDOMAIN.workers.dev` |
+| `BLOCK_SERVICE_URL` | `https://block-service.YOUR-SUBDOMAIN.workers.dev` |
+| `FILE_SERVICE_URL` | `https://file-service.YOUR-SUBDOMAIN.workers.dev` |
+
+> **Cara tahu subdomain:** Setelah deploy pertama berhasil, URL muncul di log GitHub Actions. Atau cek di Cloudflare dashboard → Workers.
+
+> **Catatan:** Deploy pertama, biarkan Variables kosong dulu. Setelah semua 4 service berhasil deploy dan URL-nya diketahui, baru isi Variables dan trigger ulang workflow (`workflow_dispatch`).
+
+---
+
+### Langkah 4 — Push ke `main` → Deploy Otomatis
 
 ```bash
-# Dari root workspace:
+git add .
+git commit -m "chore: setup deploy"
+git push origin main
+```
+
+GitHub Actions akan:
+1. Deploy **auth**, **page**, **block**, **file** service **secara paralel**
+2. Setelah keempat selesai, deploy **api-gateway** secara otomatis
+
+Pantau progress di tab **Actions** di GitHub repo.
+
+---
+
+### Urutan Deploy (diatur otomatis oleh workflow)
+
+```
+push to main
+     │
+     ├── deploy-auth  ──┐
+     ├── deploy-page  ──┤
+     ├── deploy-block ──┼──► (semua selesai) ──► deploy-gateway
+     └── deploy-file  ──┘
+```
+
+---
+
+### Verifikasi
+
+Setelah semua job hijau di GitHub Actions, buka:
+
+```
+https://notion-api.YOUR-SUBDOMAIN.workers.dev/ping
+```
+
+Response sukses:
+```json
+{
+  "status": "ok",
+  "service": "api-gateway",
+  "region": "SIN",
+  "upstreams": [
+    { "name": "auth",  "status": "ok", "latencyMs": 45 },
+    { "name": "page",  "status": "ok", "latencyMs": 32 },
+    { "name": "block", "status": "ok", "latencyMs": 38 },
+    { "name": "file",  "status": "ok", "latencyMs": 29 }
+  ]
+}
+```
+
+Swagger UI tersedia di:
+```
+https://notion-api.YOUR-SUBDOMAIN.workers.dev/docs
+```
+
+---
+
+### Trigger Deploy Manual (tanpa push)
+
+Di GitHub repo → tab **Actions** → pilih workflow **Deploy to Cloudflare Workers** → klik **Run workflow**.
+
+---
+
+## Cara 2 — Dashboard Manual (tanpa GitHub)
+
+### Prasyarat
+Sama seperti di atas, plus akses ke Replit shell untuk membuat bundle.
+
+### Langkah A — Bundle semua service
+
+Jalankan dari Replit shell:
+
+```bash
 cd services/auth-service  && pnpm exec wrangler deploy --dry-run --outdir dist
 cd services/page-service  && pnpm exec wrangler deploy --dry-run --outdir dist
 cd services/block-service && pnpm exec wrangler deploy --dry-run --outdir dist
@@ -46,123 +158,17 @@ cd services/file-service  && pnpm exec wrangler deploy --dry-run --outdir dist
 cd apps/api-gateway       && pnpm exec wrangler deploy --dry-run --outdir dist
 ```
 
-File hasil bundle ada di `dist/index.js` masing-masing folder.
+### Langkah B — Upload ke Dashboard
 
-Di editor online Cloudflare:
-1. Hapus semua kode yang ada
-2. Copy-paste isi file `dist/index.js`
-3. Klik **Save and deploy**
+Untuk setiap service:
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Create Worker**
+2. Beri nama, klik **Deploy**, lalu **Edit code**
+3. Hapus semua kode → paste isi file `dist/index.js` hasil bundle
+4. **Save and deploy**
 
-### Langkah C — Set Environment Variables (Secrets)
+### Langkah C — Set Secrets & Vars
 
-Setelah Worker berhasil deploy, klik tab **Settings** → **Variables and Secrets**.
-
-#### auth-service
-| Nama | Tipe | Nilai |
-|------|------|-------|
-| `DATABASE_URL` | Secret | `postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require` |
-| `JWT_SECRET` | Secret | string acak panjang (min 32 karakter) |
-| `JWT_REFRESH_SECRET` | Secret | string acak panjang berbeda |
-
-#### page-service & block-service
-| Nama | Tipe | Nilai |
-|------|------|-------|
-| `DATABASE_URL` | Secret | URL database Neon (sama boleh) |
-| `JWT_SECRET` | Secret | **Sama persis** dengan auth-service |
-
-#### file-service
-| Nama | Tipe | Nilai |
-|------|------|-------|
-| `CLOUDINARY_CLOUD_NAME` | Variable | nama cloud dari Cloudinary dashboard |
-| `CLOUDINARY_API_KEY` | Secret | API key dari Cloudinary |
-| `CLOUDINARY_API_SECRET` | Secret | API secret dari Cloudinary |
-
-#### api-gateway
-| Nama | Tipe | Nilai |
-|------|------|-------|
-| `AUTH_SERVICE_URL` | Variable | `https://auth-service.YOUR-SUBDOMAIN.workers.dev` |
-| `PAGE_SERVICE_URL` | Variable | `https://page-service.YOUR-SUBDOMAIN.workers.dev` |
-| `BLOCK_SERVICE_URL` | Variable | `https://block-service.YOUR-SUBDOMAIN.workers.dev` |
-| `FILE_SERVICE_URL` | Variable | `https://file-service.YOUR-SUBDOMAIN.workers.dev` |
-| `JWT_SECRET` | Secret | **Sama persis** dengan auth-service |
-
----
-
-## Membuat KV Namespace untuk Rate Limiting (api-gateway)
-
-Rate limiting gateway butuh Cloudflare KV:
-
-1. Di dashboard → **Workers & Pages** → **KV**
-2. Klik **Create namespace** → beri nama `RATE_LIMIT_KV` → **Add**
-3. Kembali ke Worker `api-gateway` → **Settings** → **Bindings**
-4. Klik **Add** → pilih **KV Namespace**
-5. Variable name: `RATE_LIMIT_KV`, pilih namespace yang baru dibuat
-6. Klik **Save**
-
----
-
-## Verifikasi Deploy
-
-Setelah semua service di-deploy, test dengan membuka URL di browser:
-
-```
-https://auth-service.YOUR-SUBDOMAIN.workers.dev/ping
-https://page-service.YOUR-SUBDOMAIN.workers.dev/ping
-https://block-service.YOUR-SUBDOMAIN.workers.dev/ping
-https://file-service.YOUR-SUBDOMAIN.workers.dev/ping
-https://api-gateway.YOUR-SUBDOMAIN.workers.dev/ping
-```
-
-Response sukses (`/ping` di api-gateway):
-```json
-{
-  "status": "ok",
-  "service": "api-gateway",
-  "version": "0.0.1",
-  "region": "SIN",
-  "timestamp": "2024-11-01T10:00:00.000Z",
-  "upstreams": [
-    { "name": "auth",  "status": "ok", "latencyMs": 45, "region": "SIN" },
-    { "name": "page",  "status": "ok", "latencyMs": 32, "region": "SIN" },
-    { "name": "block", "status": "ok", "latencyMs": 38, "region": "SIN" },
-    { "name": "file",  "status": "ok", "latencyMs": 29, "region": "SIN" }
-  ]
-}
-```
-
-Jika ada service `"status": "unreachable"` → periksa kembali URL di environment variables api-gateway.
-
----
-
-## URL Swagger UI (API Docs)
-
-Setelah api-gateway di-deploy:
-
-```
-https://api-gateway.YOUR-SUBDOMAIN.workers.dev/docs
-```
-
----
-
-## Nama Worker yang Disarankan
-
-| Service | Nama Worker | URL Hasil |
-|---------|------------|-----------|
-| auth-service | `notion-auth` | `https://notion-auth.YOUR-SUBDOMAIN.workers.dev` |
-| page-service | `notion-pages` | `https://notion-pages.YOUR-SUBDOMAIN.workers.dev` |
-| block-service | `notion-blocks` | `https://notion-blocks.YOUR-SUBDOMAIN.workers.dev` |
-| file-service | `notion-files` | `https://notion-files.YOUR-SUBDOMAIN.workers.dev` |
-| api-gateway | `notion-api` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
-
----
-
-## Custom Domain (Opsional)
-
-Untuk menggunakan domain sendiri (misal `api.myapp.com`):
-
-1. Worker → **Settings** → **Domains & Routes**
-2. Klik **Add** → **Custom domain**
-3. Masukkan domain, ikuti instruksi DNS
+Worker → **Settings** → **Variables and Secrets** → tambahkan sesuai tabel di atas.
 
 ---
 
@@ -170,7 +176,8 @@ Untuk menggunakan domain sendiri (misal `api.myapp.com`):
 
 | Error | Penyebab | Solusi |
 |-------|----------|--------|
-| `500 Internal Server Error` | `DATABASE_URL` salah atau belum diset | Periksa tab Secrets |
-| `401 Unauthorized` | `JWT_SECRET` berbeda antar service | Pastikan nilai sama persis |
-| `503 Upstream service unavailable` | URL service salah di api-gateway | Periksa env vars `*_SERVICE_URL` |
-| `upstream: unreachable` di `/ping` | Service belum di-deploy atau URL typo | Deploy service tersebut dulu |
+| `Authentication error` di Actions | `CLOUDFLARE_API_TOKEN` salah | Buat token baru, update secret |
+| `KV namespace not found` | ID di `wrangler.toml` masih placeholder | Ganti dengan ID dari Cloudflare KV dashboard |
+| `500 Internal Server Error` | `DATABASE_URL` atau `JWT_SECRET` belum diset | Periksa tab Secrets di GitHub / Cloudflare |
+| `upstream: unreachable` di `/ping` | URL service salah di Variables | Cek `*_SERVICE_URL` di GitHub Actions Variables |
+| `401 Unauthorized` | `JWT_SECRET` berbeda antar service | Pastikan semua pakai secret yang sama |
