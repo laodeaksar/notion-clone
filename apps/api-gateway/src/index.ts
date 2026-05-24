@@ -65,6 +65,37 @@ async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<RateLimitRe
   };
 }
 
+// Read current quota state WITHOUT incrementing the counter
+async function peekRateLimit(
+  ip: string,
+  kv?: KVNamespace
+): Promise<{ used: number; remaining: number; resetAt: number }> {
+  const now = Date.now();
+  let entry: RateLimitEntry | null = null;
+
+  if (kv) {
+    const raw = await kv.get(`rl:${ip}`);
+    entry = raw ? JSON.parse(raw) : null;
+  } else {
+    entry = localRateMap.get(ip) ?? null;
+  }
+
+  // No record yet — treat as a fresh window with full quota
+  if (!entry || now > entry.until) {
+    return {
+      used:      0,
+      remaining: RATE_LIMIT_MAX,
+      resetAt:   Math.ceil((now + RATE_LIMIT_WINDOW * 1000) / 1000),
+    };
+  }
+
+  return {
+    used:      entry.count,
+    remaining: Math.max(0, RATE_LIMIT_MAX - entry.count),
+    resetAt:   Math.ceil(entry.until / 1000),
+  };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getEnv(c: { env?: Partial<Bindings> }, key: Exclude<keyof Bindings, 'RATE_LIMIT_KV'>, fallback: string): string {
@@ -124,6 +155,9 @@ app.use('*', cors());
 // Rate limit middleware — uses KV in Cloudflare Workers, in-memory locally
 app.use('*', async (c, next) => {
   // cf-connecting-ip is set by Cloudflare and cannot be spoofed
+  // Status endpoint is exempt — it reads quota without consuming a slot
+  if (c.req.path === '/rate-limit/status') return next();
+
   const ip =
     c.req.header('cf-connecting-ip') ||
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
@@ -146,6 +180,28 @@ app.use('*', async (c, next) => {
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get('/health', (c) => c.json({ status: 'ok', service: 'api-gateway' }));
+
+// Returns current quota for the caller's IP — does NOT consume a slot
+app.get('/rate-limit/status', async (c) => {
+  const ip =
+    c.req.header('cf-connecting-ip') ||
+    c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
+    'unknown';
+
+  const kv = (c.env as Partial<Bindings>)?.RATE_LIMIT_KV;
+  const { used, remaining, resetAt } = await peekRateLimit(ip, kv);
+  const now = Math.ceil(Date.now() / 1000);
+
+  return c.json({
+    ip,
+    limit:    RATE_LIMIT_MAX,
+    used,
+    remaining,
+    resetAt,
+    resetsIn: Math.max(0, resetAt - now),  // seconds until window resets
+    window:   RATE_LIMIT_WINDOW,
+  });
+});
 
 app.post('/auth/register', async (c) => {
   const authServiceUrl = getEnv(c, 'AUTH_SERVICE_URL', 'http://localhost:8083');
