@@ -12,13 +12,16 @@
     "start": "bun run ./dist/index.js"
   },
   "dependencies": {
+    "@hono/swagger-ui": "^0.6.1",
     "hono": "^3.1.2",
+    "js-yaml": "^4.1.1",
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/bun": "latest",
     "@cloudflare/workers-types": "^4.0.0",
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.4.0",
     "wrangler": "^3.0.0"
   }
 }

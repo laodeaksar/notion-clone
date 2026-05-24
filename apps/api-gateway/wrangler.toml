@@ -46,3 +46,11 @@ FILE_SERVICE_URL  = "https://GANTI-DENGAN-URL-FILE-SERVICE"
 
 # JWT_SECRET JANGAN diisi di sini — gunakan:
 #   pnpm exec wrangler secret put JWT_SECRET
+
+# ── Module Rules ──────────────────────────────────────────────────────────────
+# Memungkinkan wrangler mem-bundle openapi.yaml sebagai Text module saat deploy.
+# Dengan ini, import statis seperti `import yaml from '../openapi.yaml'`
+# akan bekerja di Workers (file dibundel sebagai string saat build time).
+[[rules]]
+type  = "Text"
+globs = ["**/*.yaml"]

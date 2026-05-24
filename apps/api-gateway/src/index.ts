@@ -1,5 +1,24 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { swaggerUI } from '@hono/swagger-ui';
+import jsYaml from 'js-yaml';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// ─── OpenAPI spec ─────────────────────────────────────────────────────────────
+// Loaded once at startup.
+// Bun / Node: reads openapi.yaml from disk via node:fs.
+// Cloudflare Workers: file-system access is unavailable; spec is served as an
+// empty stub unless bundled as a Text module (see wrangler.toml [[rules]]).
+let openapiSpec: object = {};
+try {
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const yaml = readFileSync(join(dir, '../openapi.yaml'), 'utf-8');
+  openapiSpec = jsYaml.load(yaml) as object;
+} catch {
+  // Workers environment — spec unavailable at runtime (see wrangler.toml)
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -155,8 +174,9 @@ app.use('*', cors());
 // Rate limit middleware — uses KV in Cloudflare Workers, in-memory locally
 app.use('*', async (c, next) => {
   // cf-connecting-ip is set by Cloudflare and cannot be spoofed
-  // Status endpoint is exempt — it reads quota without consuming a slot
-  if (c.req.path === '/rate-limit/status') return next();
+  // These endpoints are exempt from rate limiting
+  const exemptPaths = ['/rate-limit/status', '/docs', '/openapi.json', '/health'];
+  if (exemptPaths.includes(c.req.path)) return next();
 
   const ip =
     c.req.header('cf-connecting-ip') ||
@@ -180,6 +200,14 @@ app.use('*', async (c, next) => {
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get('/health', (c) => c.json({ status: 'ok', service: 'api-gateway' }));
+
+// ─── Docs ─────────────────────────────────────────────────────────────────────
+
+// Serve the parsed OpenAPI spec as JSON (consumed by Swagger UI)
+app.get('/openapi.json', (c) => c.json(openapiSpec));
+
+// Interactive Swagger UI — not rate-limited, no auth required
+app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 
 // Returns current quota for the caller's IP — does NOT consume a slot
 app.get('/rate-limit/status', async (c) => {
