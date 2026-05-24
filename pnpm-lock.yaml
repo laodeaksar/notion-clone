@@ -32,9 +32,9 @@ importers:
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1
-      zod:
-        specifier: ^3.22.2
-        version: 3.25.76
+      valibot:
+        specifier: ^1.4.0
+        version: 1.4.0(typescript@5.9.3)
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.0.0
@@ -5045,6 +5045,14 @@ packages:
   uzip@0.20201231.0:
     resolution: {integrity: sha512-OZeJfZP+R0z9D6TmBgLq2LHzSSptGMGDGigGiEe0pr8UBe/7fdflgHlHBNDASTXB5jnFuxHpNaJywSg8YFeGng==}
 
+  valibot@1.4.0:
+    resolution: {integrity: sha512-iC/x7fVcSyOwlm/VSt7RlHnzNGLGvR9GnxdifUeWoCJo0q4ZZvrVkIHC6faTlkxG47I2Y4UrFquPuVHCrOnrLg==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   validate-npm-package-name@7.0.2:
     resolution: {integrity: sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==}
     engines: {node: ^20.17.0 || >=22.9.0}
@@ -9777,6 +9785,10 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uzip@0.20201231.0: {}
+
+  valibot@1.4.0(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
 
   validate-npm-package-name@7.0.2: {}
 
