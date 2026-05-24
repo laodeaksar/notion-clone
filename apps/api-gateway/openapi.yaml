@@ -1,111 +1,499 @@
 openapi: 3.0.3
 info:
   title: Notion Clone API Gateway
-  version: 0.1.0
+  version: 0.3.0
+  description: |
+    Edge API gateway for the Notion Clone monorepo.
+    Proxies requests to internal microservices (auth, page, block, file).
+
+    **Rate Limiting**
+    Every response includes rate limit headers:
+    - `X-RateLimit-Limit` — max requests allowed per window
+    - `X-RateLimit-Remaining` — remaining requests in the current window
+    - `X-RateLimit-Reset` — Unix timestamp (seconds) when the window resets
+
+    When the limit is exceeded the gateway returns **429 Too Many Requests**.
+    Use `GET /rate-limit/status` to inspect your quota without consuming a slot.
+
 servers:
   - url: http://localhost:8787
+    description: Local dev (wrangler dev)
+  - url: http://localhost:8080
+    description: Local dev (Bun)
+
+# ─── Reusable components ──────────────────────────────────────────────────────
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum number of requests allowed per window.
+      schema:
+        type: integer
+        example: 100
+    X-RateLimit-Remaining:
+      description: Number of requests remaining in the current window.
+      schema:
+        type: integer
+        example: 97
+    X-RateLimit-Reset:
+      description: Unix timestamp (seconds) at which the current window resets.
+      schema:
+        type: integer
+        format: int64
+        example: 1748203234
+
+  schemas:
+    RateLimitHeaders:
+      description: Rate limit headers present on every response.
+      type: object
+      properties:
+        X-RateLimit-Limit:
+          type: integer
+        X-RateLimit-Remaining:
+          type: integer
+        X-RateLimit-Reset:
+          type: integer
+
+    RateLimitStatus:
+      type: object
+      required: [ip, limit, used, remaining, resetAt, resetsIn, window]
+      properties:
+        ip:
+          type: string
+          description: Client IP address as seen by the gateway.
+          example: "203.0.113.42"
+        limit:
+          type: integer
+          description: Maximum requests allowed per window.
+          example: 100
+        used:
+          type: integer
+          description: Requests consumed in the current window.
+          example: 3
+        remaining:
+          type: integer
+          description: Requests still available in the current window.
+          example: 97
+        resetAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the window resets.
+          example: 1748203234
+        resetsIn:
+          type: integer
+          description: Seconds until the current window resets.
+          example: 57
+        window:
+          type: integer
+          description: Window duration in seconds.
+          example: 60
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: "not found"
+
+    RateLimitError:
+      type: object
+      required: [error, retryAfter]
+      properties:
+        error:
+          type: string
+          example: "Too many requests"
+        retryAfter:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the limit resets.
+          example: 1748203234
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Page:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        parentId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Block:
+      type: object
+      properties:
+        id:
+          type: string
+        pageId:
+          type: string
+        type:
+          type: string
+        content:
+          type: object
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+  responses:
+    RateLimited:
+      description: Too Many Requests — rate limit exceeded.
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
+
+    Unauthorized:
+      description: Unauthorized — missing or invalid JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# ─── Paths ────────────────────────────────────────────────────────────────────
 paths:
   /health:
     get:
       summary: Health check
+      description: Returns `{ status, service }`. Not rate-limited.
+      tags: [System]
       responses:
         '200':
-          description: OK
+          description: Gateway is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: api-gateway
+
+  /rate-limit/status:
+    get:
+      summary: Rate limit status
+      description: |
+        Returns the current rate limit quota for the caller's IP address.
+
+        **This endpoint does NOT consume a request slot** — calling it
+        repeatedly will not reduce `remaining`. Use it for dashboards,
+        client-side quota checks, or debugging without fear of burning quota.
+      tags: [System]
+      responses:
+        '200':
+          description: Current quota information for the caller's IP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitStatus'
+              example:
+                ip: "203.0.113.42"
+                limit: 100
+                used: 3
+                remaining: 97
+                resetAt: 1748203234
+                resetsIn: 57
+                window: 60
+
   /auth/register:
     post:
       summary: Register a new user
+      tags: [Auth]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [email, password]
               properties:
                 email:
                   type: string
+                  format: email
+                  example: user@example.com
                 password:
                   type: string
+                  minLength: 8
+                  example: "s3cr3tpass"
                 name:
                   type: string
+                  example: "Alice"
       responses:
         '200':
-          description: Registered user
+          description: User registered successfully.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '409':
+          description: Email already registered.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /auth/login:
     post:
       summary: Login a user
+      description: |
+        Returns a JWT token in the response body.
+        The gateway also sets an `HttpOnly` cookie named `token`
+        so browser clients are authenticated automatically on subsequent requests.
+      tags: [Auth]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [email, password]
               properties:
                 email:
                   type: string
+                  format: email
+                  example: user@example.com
                 password:
                   type: string
+                  example: "s3cr3tpass"
       responses:
         '200':
-          description: JWT token
+          description: Authenticated successfully.
+          headers:
+            Set-Cookie:
+              description: HttpOnly cookie containing the JWT (`token=...`).
+              schema:
+                type: string
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Signed JWT (HS256).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /me:
     get:
-      summary: Get current user profile
+      summary: Get the authenticated user's profile
+      tags: [Auth]
       security:
         - bearerAuth: []
+        - cookieAuth: []
       responses:
         '200':
-          description: Authenticated user
+          description: Authenticated user payload decoded from JWT.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    description: JWT payload.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /pages:
     get:
       summary: List pages
+      description: Returns all top-level pages, or children of `parentId` if provided.
+      tags: [Pages]
       parameters:
         - in: query
           name: parentId
           schema:
             type: string
+          description: Filter pages by parent ID.
       responses:
         '200':
-          description: Page list
+          description: Array of pages.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Page'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
     post:
       summary: Create a new page
+      tags: [Pages]
       security:
         - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [title]
               properties:
                 title:
                   type: string
+                  example: "My New Page"
                 parentId:
                   type: string
+                  nullable: true
       responses:
         '200':
-          description: Created page
+          description: Created page.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    $ref: '#/components/schemas/Page'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /pages/{id}:
     get:
-      summary: Proxy to page-service to fetch page
+      summary: Get a page by ID
+      description: |
+        Fetches a single page. Add `?include=blocks` to also receive the page's
+        content blocks in a single request.
+      tags: [Pages]
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
+        - in: query
+          name: include
+          schema:
+            type: string
+            enum: [blocks]
+          description: Pass `blocks` to embed the page's blocks in the response.
       responses:
         '200':
-          description: Page object
+          description: Page object (with optional `blocks` array when `include=blocks`).
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      blocks:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Block'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
     put:
-      summary: Update page
+      summary: Update a page
+      tags: [Pages]
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - in: path
           name: id
@@ -118,18 +506,38 @@ paths:
           application/json:
             schema:
               type: object
+              required: [title]
               properties:
                 title:
                   type: string
                 parentId:
                   type: string
+                  nullable: true
       responses:
         '200':
-          description: Updated page
+          description: Updated page.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
     delete:
-      summary: Delete page
+      summary: Delete a page
+      tags: [Pages]
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - in: path
           name: id
@@ -138,10 +546,31 @@ paths:
             type: string
       responses:
         '200':
-          description: Deleted page
+          description: Page deleted.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /pages/{id}/blocks:
     get:
       summary: List blocks for a page
+      tags: [Blocks]
       parameters:
         - in: path
           name: id
@@ -150,19 +579,63 @@ paths:
             type: string
       responses:
         '200':
-          description: Page blocks
+          description: Array of blocks ordered by `order` field.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /upload:
     post:
-      summary: Upload media through file-service
+      summary: Upload a file via the file-service
+      description: |
+        Accepts a base64-encoded file string and forwards it to the file-service,
+        which uploads it to Cloudinary and returns the public URL.
+      tags: [Files]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [data]
               properties:
                 data:
                   type: string
+                  description: Base64-encoded file content (data URL).
+                  example: "data:image/png;base64,iVBORw0KGgo..."
       responses:
         '200':
-          description: Uploaded file URL
+          description: Uploaded file details.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Public Cloudinary URL of the uploaded file.
+                  publicId:
+                    type: string
+                    description: Cloudinary public ID.
+        '429':
+          $ref: '#/components/responses/RateLimited'
