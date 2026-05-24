@@ -4,22 +4,26 @@ import { verifyJWT, extractToken } from '../lib/jwt';
 import { getEnv } from '../config';
 
 /**
- * requireAuth — Hono middleware that verifies the JWT from the Authorization
- * header or `token` cookie. On success it calls next() and stores the decoded
- * payload in `c.var.jwtPayload` (typed via HonoEnv Variables). On failure it
- * short-circuits with 401 so the downstream handler never runs.
+ * requireAuth — verifies the JWT and stores the decoded payload in
+ * `c.var.jwtPayload`. Short-circuits with 401 if no valid token is found.
  *
- * Usage in a route:
+ * If `autoRefreshMiddleware` already ran and populated `c.var.jwtPayload`
+ * (fresh token was issued this cycle), verification is skipped to avoid
+ * redundant crypto work.
+ *
+ * Usage:
  *   router.post('/resource', requireAuth, vValidator('json', Schema, onErr), handler)
+ *   // Access payload inside handler: c.var.jwtPayload
  */
 export const requireAuth = createMiddleware<HonoEnv>(async (c, next) => {
+  // Already populated by autoRefreshMiddleware — skip re-verification
+  if (c.var.jwtPayload) return next();
+
   const secret  = getEnv(c, 'JWT_SECRET', 'dev-secret');
   const token   = await extractToken(c as any);
   const payload = token ? await verifyJWT(token, secret) : null;
 
-  if (!payload) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
+  if (!payload) return c.json({ error: 'Unauthorized' }, 401);
 
   c.set('jwtPayload', payload);
   await next();
