@@ -1,24 +1,30 @@
-import { Elysia } from 'elysia';
-import { authService } from '../services/auth.service';
+import { Hono } from 'hono';
+import { vValidator } from '@hono/valibot-validator';
+import { RegisterSchema, LoginSchema } from '../types/auth.types';
+import { createAuthService } from '../services/auth.service';
+import { createDb } from '../config';
+import type { HonoEnv } from '../types/env';
 
-export const authRoutes = new Elysia()
-  .post('/register', async ({ body, set }) => {
+export const authRoutes = new Hono<HonoEnv>()
+
+  .post('/register', vValidator('json', RegisterSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const authService = createAuthService(db, c.env.JWT_SECRET);
     try {
-      const user = await authService.register(body);
-      set.status = 201;
-      return { user };
+      const user = await authService.register(c.req.valid('json'));
+      return c.json({ user }, 201);
     } catch (err: any) {
-      set.status = err.status ?? 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, err.status ?? 400);
     }
   })
 
-  .post('/login', async ({ body, set }) => {
+  .post('/login', vValidator('json', LoginSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const authService = createAuthService(db, c.env.JWT_SECRET);
     try {
-      const token = await authService.login(body);
-      return { token };
+      const token = await authService.login(c.req.valid('json'));
+      return c.json({ token });
     } catch (err: any) {
-      set.status = err.status ?? 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, err.status ?? 400);
     }
   });

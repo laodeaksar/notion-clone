@@ -1,0 +1,13 @@
+name = "auth-service"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets — set these with wrangler CLI before deploying:
+#   wrangler secret put DATABASE_URL
+#   wrangler secret put JWT_SECRET
+#
+# For Cloudflare Hyperdrive (wraps external Postgres over TCP), add:
+#   [[hyperdrive]]
+#   binding = "HYPERDRIVE"
+#   id = "<your-hyperdrive-id>"

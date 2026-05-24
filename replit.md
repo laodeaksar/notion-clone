@@ -6,7 +6,7 @@ A full-stack Notion clone built as a monorepo with a SvelteKit frontend, microse
 
 - **Frontend** (`apps/web`): SvelteKit + Tailwind CSS + TipTap editor with Yjs real-time collaboration
 - **API Gateway** (`apps/api-gateway`): Hono on Bun — routes all frontend requests to microservices
-- **Auth Service** (`services/auth-service`): Elysia on Bun — JWT auth, user registration/login
+- **Auth Service** (`services/auth-service`): **Hono + Valibot on Cloudflare Workers** — JWT auth (Web Crypto API), user registration/login. Deploy with `pnpm --filter @workspace/auth-service deploy`.
 - **Page Service** (`services/page-service`): Elysia on Bun — page CRUD
 - **Block Service** (`services/block-service`): Elysia on Bun — content blocks CRUD
 - **File Service** (`services/file-service`): Elysia on Bun — Cloudinary file uploads

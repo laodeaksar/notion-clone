@@ -1,10 +1,14 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+/**
+ * Creates a per-request Drizzle client backed by Neon's HTTP driver.
+ * Must be called inside a request handler so CF Workers env bindings
+ * are available — never call at module scope.
+ */
+export function createDb(databaseUrl: string) {
+  const sql = neon(databaseUrl);
+  return drizzle(sql);
+}
 
-export const db = drizzle(pool);
-export const PORT = process.env.PORT ? Number(process.env.PORT) : 8083;
-export const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret';
+export type Db = ReturnType<typeof createDb>;
