@@ -11,6 +11,19 @@ export type Bindings = {
   RATE_LIMIT_KV: KVNamespace;
 };
 
+// ─── Hono Context Variables (set by middleware, read by handlers) ─────────────
+
+export type GatewayVariables = {
+  jwtPayload: Record<string, unknown>;
+};
+
+// ─── Combined Hono environment type ──────────────────────────────────────────
+
+export type HonoEnv = {
+  Bindings: Bindings;
+  Variables: GatewayVariables;
+};
+
 // ─── Rate Limit ───────────────────────────────────────────────────────────────
 
 export type RateLimitEntry = { count: number; until: number };
@@ -63,6 +76,6 @@ export const UploadBodySchema = v.object({
 });
 
 export type RegisterBody = v.InferOutput<typeof RegisterBodySchema>;
-export type LoginBody = v.InferOutput<typeof LoginBodySchema>;
-export type PageBody = v.InferOutput<typeof PageBodySchema>;
-export type UploadBody = v.InferOutput<typeof UploadBodySchema>;
+export type LoginBody    = v.InferOutput<typeof LoginBodySchema>;
+export type PageBody     = v.InferOutput<typeof PageBodySchema>;
+export type UploadBody   = v.InferOutput<typeof UploadBodySchema>;

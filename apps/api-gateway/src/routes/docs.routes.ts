@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import type { Bindings } from '../types/gateway.types';
+import type { Bindings, HonoEnv } from '../types/gateway.types';
 import { openapiSpec } from '../lib/openapi';
 import { gatewayMetrics } from '../middleware/metrics';
 import { peekRateLimit } from '../middleware/rate-limit';
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW } from '../config';
 
-export const docsRoutes = new Hono<{ Bindings: Bindings }>();
+export const docsRoutes = new Hono<HonoEnv>();
 
 docsRoutes.get('/health', (c) =>
   c.json({ status: 'ok', service: 'api-gateway' })
@@ -14,25 +14,25 @@ docsRoutes.get('/health', (c) =>
 docsRoutes.get('/openapi.json', (c) => c.json(openapiSpec));
 
 docsRoutes.get('/metrics', (c) => {
-  const now = Date.now();
+  const now           = Date.now();
   const uptimeSeconds = Math.floor((now - gatewayMetrics.startedAt) / 1000);
 
   const paths = Object.entries(gatewayMetrics.paths)
     .map(([path, s]) => ({
       path,
-      requests: s.count,
+      requests:     s.count,
       avgLatencyMs: s.count > 0 ? Math.round(s.latencySum / s.count) : 0,
-      errors: s.errors,
-      rateLimited: s.rateLimited
+      errors:       s.errors,
+      rateLimited:  s.rateLimited
     }))
     .sort((a, b) => b.requests - a.requests);
 
   return c.json({
-    startedAt: new Date(gatewayMetrics.startedAt).toISOString(),
+    startedAt:        new Date(gatewayMetrics.startedAt).toISOString(),
     uptimeSeconds,
-    totalRequests: gatewayMetrics.totalRequests,
+    totalRequests:    gatewayMetrics.totalRequests,
     totalRateLimited: gatewayMetrics.totalRateLimited,
-    totalErrors: gatewayMetrics.totalErrors,
+    totalErrors:      gatewayMetrics.totalErrors,
     paths,
     note: 'Counters are in-memory and reset on server restart.'
   });
@@ -50,12 +50,12 @@ docsRoutes.get('/rate-limit/status', async (c) => {
 
   return c.json({
     ip,
-    limit: RATE_LIMIT_MAX,
+    limit:    RATE_LIMIT_MAX,
     used,
     remaining,
     resetAt,
     resetsIn: Math.max(0, resetAt - now),
-    window: RATE_LIMIT_WINDOW
+    window:   RATE_LIMIT_WINDOW
   });
 });
 

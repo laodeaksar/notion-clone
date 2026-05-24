@@ -1,5 +1,5 @@
-import type { MiddlewareHandler } from 'hono';
-import type { Bindings, RateLimitEntry, RateLimitResult } from '../types/gateway.types';
+import { createMiddleware } from 'hono/factory';
+import type { Bindings, HonoEnv, RateLimitEntry, RateLimitResult } from '../types/gateway.types';
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, METRICS_SKIP } from '../config';
 
 const localRateMap = new Map<string, RateLimitEntry>();
@@ -40,9 +40,9 @@ export async function checkRateLimit(
   }
 
   return {
-    allowed: entry.count <= RATE_LIMIT_MAX,
+    allowed:   entry.count <= RATE_LIMIT_MAX,
     remaining: Math.max(0, RATE_LIMIT_MAX - entry.count),
-    resetAt: Math.ceil(entry.until / 1000)
+    resetAt:   Math.ceil(entry.until / 1000)
   };
 }
 
@@ -62,20 +62,20 @@ export async function peekRateLimit(
 
   if (!entry || now > entry.until) {
     return {
-      used: 0,
+      used:      0,
       remaining: RATE_LIMIT_MAX,
-      resetAt: Math.ceil((now + RATE_LIMIT_WINDOW * 1000) / 1000)
+      resetAt:   Math.ceil((now + RATE_LIMIT_WINDOW * 1000) / 1000)
     };
   }
 
   return {
-    used: entry.count,
+    used:      entry.count,
     remaining: Math.max(0, RATE_LIMIT_MAX - entry.count),
-    resetAt: Math.ceil(entry.until / 1000)
+    resetAt:   Math.ceil(entry.until / 1000)
   };
 }
 
-export const rateLimitMiddleware: MiddlewareHandler<{ Bindings: Bindings }> = async (c, next) => {
+export const rateLimitMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   if (METRICS_SKIP.has(c.req.path)) return next();
 
   const ip =
@@ -86,12 +86,12 @@ export const rateLimitMiddleware: MiddlewareHandler<{ Bindings: Bindings }> = as
   const kv = (c.env as Partial<Bindings>)?.RATE_LIMIT_KV;
   const { allowed, remaining, resetAt } = await checkRateLimit(ip, kv);
 
-  c.header('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
+  c.header('X-RateLimit-Limit',     String(RATE_LIMIT_MAX));
   c.header('X-RateLimit-Remaining', String(remaining));
-  c.header('X-RateLimit-Reset', String(resetAt));
+  c.header('X-RateLimit-Reset',     String(resetAt));
 
   if (!allowed) {
     return c.json({ error: 'Too many requests', retryAfter: resetAt }, 429);
   }
   return next();
-};
+});
