@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Notion Clone API Gateway
+  version: 0.1.0
+servers:
+  - url: http://localhost:8787
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Registered user
+  /auth/login:
+    post:
+      summary: Login a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: JWT token
+  /me:
+    get:
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user
+  /pages:
+    get:
+      summary: List pages
+      parameters:
+        - in: query
+          name: parentId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page list
+    post:
+      summary: Create a new page
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                parentId:
+                  type: string
+      responses:
+        '200':
+          description: Created page
+  /pages/{id}:
+    get:
+      summary: Proxy to page-service to fetch page
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page object
+    put:
+      summary: Update page
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                parentId:
+                  type: string
+      responses:
+        '200':
+          description: Updated page
+    delete:
+      summary: Delete page
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted page
+  /pages/{id}/blocks:
+    get:
+      summary: List blocks for a page
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page blocks
+  /upload:
+    post:
+      summary: Upload media through file-service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+      responses:
+        '200':
+          description: Uploaded file URL

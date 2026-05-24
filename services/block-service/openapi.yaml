@@ -1,0 +1,48 @@
+openapi: 3.0.3
+info:
+  title: Block Service
+  version: 0.1.0
+paths:
+  /blocks:
+    get:
+      summary: List blocks by page ID
+      parameters:
+        - in: query
+          name: pageId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Block list
+    post:
+      summary: Create a block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pageId:
+                  type: string
+                type:
+                  type: string
+                content:
+                  type: object
+                order:
+                  type: number
+      responses:
+        '200':
+          description: Created block
+  /blocks/{id}:
+    get:
+      summary: Get a block by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Block object

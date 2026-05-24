@@ -1,0 +1,19 @@
+{
+  "name": "@workspace/file-service",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "elysia": "^0.6.0",
+    "zod": "^3.22.2",
+    "cloudinary": "^1.37.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -1,0 +1,95 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notion
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+
+  hocuspocus:
+    image: hocuspocus/hocuspocus:latest
+    environment:
+      - PORT=1234
+    ports:
+      - '1234:1234'
+
+  api-gateway:
+    build:
+      context: ./apps/api-gateway
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      PAGE_SERVICE_URL: http://page-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8083
+      BLOCK_SERVICE_URL: http://block-service:8081
+      FILE_SERVICE_URL: http://file-service:8084
+    ports:
+      - '8787:8787'
+    depends_on:
+      - page-service
+      - auth-service
+      - block-service
+      - file-service
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notion
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 8083
+    depends_on:
+      - postgres
+    ports:
+      - '8083:8083'
+
+  page-service:
+    build:
+      context: ./services/page-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notion
+      PORT: 8082
+    depends_on:
+      - postgres
+    ports:
+      - '8082:8082'
+
+  file-service:
+    build:
+      context: ./services/file-service
+    environment:
+      CLOUDINARY_URL: ${CLOUDINARY_URL}
+      PORT: 8084
+    ports:
+      - '8084:8084'
+
+  block-service:
+    build:
+      context: ./services/block-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notion
+      PORT: 8081
+    depends_on:
+      - postgres
+    ports:
+      - '8081:8081'
+
+  web:
+    build:
+      context: ./apps/web
+    environment:
+      VITE_API_URL: http://localhost:8787
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres-data:

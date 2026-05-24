@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/auth-service",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "elysia": "^0.6.0",
+    "jsonwebtoken": "^9.0.0",
+    "zod": "^3.22.2",
+    "cookie": "^0.5.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.0.0",
+    "@workspace/db": "workspace:*",
+    "@workspace/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "@types/jsonwebtoken": "^9.0.0"
+  }
+}

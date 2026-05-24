@@ -1,0 +1,20 @@
+openapi: 3.0.3
+info:
+  title: File Service
+  version: 0.1.0
+paths:
+  /upload:
+    post:
+      summary: Upload media to Cloudinary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+      responses:
+        '200':
+          description: Uploaded file metadata

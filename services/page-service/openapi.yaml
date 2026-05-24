@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: Page Service
+  version: 0.1.0
+paths:
+  /pages:
+    post:
+      summary: Create a page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                parentId:
+                  type: string
+      responses:
+        '200':
+          description: Created page
+  /pages/{id}:
+    get:
+      summary: Get a page by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page object
+    put:
+      summary: Update a page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                parentId:
+                  type: string
+      responses:
+        '200':
+          description: Updated page
+    delete:
+      summary: Delete a page
+      responses:
+        '200':
+          description: Page deleted
