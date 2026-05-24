@@ -1,11 +1,7 @@
-import { Elysia } from 'elysia';
+import { Hono } from 'hono';
 import { fileRoutes } from './files';
-import { isCloudinaryConfigured } from '../config';
+import type { HonoEnv } from '../types/env';
 
-export const routes = new Elysia()
-  .get('/', () => ({
-    status: 'ok',
-    service: 'file-service',
-    provider: isCloudinaryConfigured ? 'cloudinary' : 'local'
-  }))
-  .use(fileRoutes);
+export const routes = new Hono<HonoEnv>()
+  .get('/', (c) => c.json({ status: 'ok', service: 'file-service', provider: 'cloudinary' }))
+  .route('/upload', fileRoutes);

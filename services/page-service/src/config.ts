@@ -1,9 +1,9 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+export function createDb(databaseUrl: string) {
+  const sql = neon(databaseUrl);
+  return drizzle(sql);
+}
 
-export const db = drizzle(pool);
-export const PORT = process.env.PORT ? Number(process.env.PORT) : 8082;
+export type Db = ReturnType<typeof createDb>;

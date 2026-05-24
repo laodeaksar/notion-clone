@@ -1,0 +1,8 @@
+name = "block-service"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets — set before deploying:
+#   wrangler secret put DATABASE_URL
+#   wrangler secret put JWT_SECRET

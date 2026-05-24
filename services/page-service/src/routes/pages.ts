@@ -1,52 +1,58 @@
-import { Elysia } from 'elysia';
-import { pageService } from '../services/page.service';
+import { Hono } from 'hono';
+import { vValidator } from '@hono/valibot-validator';
+import { PageInputSchema, PageUpdateSchema } from '../types/page.types';
+import { createPageService } from '../services/page.service';
+import { createDb } from '../config';
+import { authMiddleware } from '../middleware/auth';
+import type { HonoEnv } from '../types/env';
 
-export const pageRoutes = new Elysia({ prefix: '/pages' })
-  .get('/', async ({ query }) => {
-    const parentId = (query as Record<string, string>).parentId;
-    const pages = await pageService.getPages(parentId);
-    return { pages };
+export const pageRoutes = new Hono<HonoEnv>()
+
+  .use('*', authMiddleware)
+
+  .get('/', async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db);
+    const parentId = c.req.query('parentId');
+    const pages = await svc.getPages(parentId);
+    return c.json({ pages });
   })
 
-  .post('/', async ({ body, set }) => {
+  .post('/', vValidator('json', PageInputSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db);
     try {
-      const page = await pageService.createPage(body);
-      set.status = 201;
-      return { page };
+      const page = await svc.createPage(c.req.valid('json'));
+      return c.json({ page }, 201);
     } catch (err: any) {
-      set.status = 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, 400);
     }
   })
 
-  .get('/:id', async ({ params, set }) => {
-    const page = await pageService.getPageById(params.id);
-    if (!page) {
-      set.status = 404;
-      return { error: 'Page not found' };
-    }
-    return { page };
+  .get('/:id', async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db);
+    const page = await svc.getPageById(c.req.param('id'));
+    if (!page) return c.json({ error: 'Page not found' }, 404);
+    return c.json({ page });
   })
 
-  .put('/:id', async ({ params, body, set }) => {
+  .put('/:id', vValidator('json', PageUpdateSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db);
     try {
-      const page = await pageService.updatePage(params.id, body);
-      if (!page) {
-        set.status = 404;
-        return { error: 'Page not found' };
-      }
-      return { page };
+      const page = await svc.updatePage(c.req.param('id'), c.req.valid('json'));
+      if (!page) return c.json({ error: 'Page not found' }, 404);
+      return c.json({ page });
     } catch (err: any) {
-      set.status = 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, 400);
     }
   })
 
-  .delete('/:id', async ({ params, set }) => {
-    const deleted = await pageService.deletePage(params.id);
-    if (!deleted) {
-      set.status = 404;
-      return { error: 'Page not found' };
-    }
-    return { deleted: true };
+  .delete('/:id', async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db);
+    const deleted = await svc.deletePage(c.req.param('id'));
+    if (!deleted) return c.json({ error: 'Page not found' }, 404);
+    return c.json({ deleted: true });
   });

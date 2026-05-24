@@ -1,11 +1,19 @@
-import { Elysia } from 'elysia';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
 import { routes } from './routes/index';
-import { PORT } from './config';
+import type { HonoEnv } from './types/env';
 
-const app = new Elysia()
-  .use(routes)
-  .listen(PORT);
+const app = new Hono<HonoEnv>();
 
-console.log(`[page-service] running on port ${PORT}`);
+app.use('*', logger());
+app.use('*', cors());
 
-export type App = typeof app;
+app.route('/', routes);
+
+app.onError((err, c) => {
+  console.error('[page-service] unhandled error:', err);
+  return c.json({ error: 'Internal server error' }, 500);
+});
+
+export default app;

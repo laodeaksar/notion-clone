@@ -1,6 +1,15 @@
-import { createPublisher } from '@workspace/shared/src/events/publisher';
-import type { BlockEvent } from '@workspace/shared/src/events/events';
+export type BlockEvent =
+  | { type: 'block.created'; payload: { blockId: string; pageId: string } }
+  | { type: 'block.updated'; payload: { blockId: string; pageId: string } }
+  | { type: 'block.deleted'; payload: { blockId: string; pageId: string } };
 
-export type { BlockEvent } from '@workspace/shared/src/events/events';
-
-export const publisher = createPublisher<BlockEvent>('block-events');
+/**
+ * CF Workers-compatible publisher.
+ * Logs events to console. Extend with CF Queues binding when needed:
+ *   await env.BLOCK_QUEUE.send(event)
+ */
+export const publisher = {
+  async publish(event: BlockEvent): Promise<void> {
+    console.log('[block-events]', JSON.stringify(event));
+  }
+};

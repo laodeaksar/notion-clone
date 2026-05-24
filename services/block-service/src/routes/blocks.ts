@@ -1,56 +1,59 @@
-import { Elysia } from 'elysia';
-import { blockService } from '../services/block.service';
+import { Hono } from 'hono';
+import { vValidator } from '@hono/valibot-validator';
+import { BlockInputSchema, BlockUpdateSchema } from '../types/block.types';
+import { createBlockService } from '../services/block.service';
+import { createDb } from '../config';
+import { authMiddleware } from '../middleware/auth';
+import type { HonoEnv } from '../types/env';
 
-export const blockRoutes = new Elysia({ prefix: '/blocks' })
-  .get('/', async ({ query, set }) => {
-    const pageId = (query as Record<string, string>).pageId;
-    if (!pageId) {
-      set.status = 400;
-      return { error: 'pageId is required' };
-    }
-    const blocks = await blockService.getBlocksByPage(pageId);
-    return { blocks };
+export const blockRoutes = new Hono<HonoEnv>()
+
+  .use('*', authMiddleware)
+
+  .get('/', async (c) => {
+    const pageId = c.req.query('pageId');
+    if (!pageId) return c.json({ error: 'pageId is required' }, 400);
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createBlockService(db);
+    const blocks = await svc.getBlocksByPage(pageId);
+    return c.json({ blocks });
   })
 
-  .get('/:id', async ({ params, set }) => {
-    const block = await blockService.getBlockById(params.id);
-    if (!block) {
-      set.status = 404;
-      return { error: 'Block not found' };
-    }
-    return { block };
+  .get('/:id', async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createBlockService(db);
+    const block = await svc.getBlockById(c.req.param('id'));
+    if (!block) return c.json({ error: 'Block not found' }, 404);
+    return c.json({ block });
   })
 
-  .post('/', async ({ body, set }) => {
+  .post('/', vValidator('json', BlockInputSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createBlockService(db);
     try {
-      const block = await blockService.createBlock(body);
-      set.status = 201;
-      return { status: 'created', block };
+      const block = await svc.createBlock(c.req.valid('json'));
+      return c.json({ status: 'created', block }, 201);
     } catch (err: any) {
-      set.status = 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, 400);
     }
   })
 
-  .put('/:id', async ({ params, body, set }) => {
+  .put('/:id', vValidator('json', BlockUpdateSchema), async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createBlockService(db);
     try {
-      const block = await blockService.updateBlock(params.id, body);
-      if (!block) {
-        set.status = 404;
-        return { error: 'Block not found' };
-      }
-      return { block };
+      const block = await svc.updateBlock(c.req.param('id'), c.req.valid('json'));
+      if (!block) return c.json({ error: 'Block not found' }, 404);
+      return c.json({ block });
     } catch (err: any) {
-      set.status = 400;
-      return { error: err.message ?? 'Invalid input' };
+      return c.json({ error: err.message ?? 'Invalid input' }, 400);
     }
   })
 
-  .delete('/:id', async ({ params, set }) => {
-    const deleted = await blockService.deleteBlock(params.id);
-    if (!deleted) {
-      set.status = 404;
-      return { error: 'Block not found' };
-    }
-    return { deleted: true };
+  .delete('/:id', async (c) => {
+    const db = createDb(c.env.DATABASE_URL);
+    const svc = createBlockService(db);
+    const deleted = await svc.deleteBlock(c.req.param('id'));
+    if (!deleted) return c.json({ error: 'Block not found' }, 404);
+    return c.json({ deleted: true });
   });
