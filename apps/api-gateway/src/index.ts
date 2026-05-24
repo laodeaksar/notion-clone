@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { swaggerUI } from '@hono/swagger-ui';
 import jsYaml from 'js-yaml';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -207,7 +206,60 @@ app.get('/health', (c) => c.json({ status: 'ok', service: 'api-gateway' }));
 app.get('/openapi.json', (c) => c.json(openapiSpec));
 
 // Interactive Swagger UI — not rate-limited, no auth required
-app.get('/docs', swaggerUI({ url: '/openapi.json' }));
+//
+// Key behaviours:
+//  • Fetches /openapi.json then OVERRIDES spec.servers with window.location.origin
+//    so "Try it out" works from any host — localhost, wrangler dev, or Replit proxy.
+//  • persistAuthorization — JWT entered once survives page reloads.
+//  • displayRequestDuration — shows latency on every response.
+//  • filter — search box across all operations.
+app.get('/docs', (c) =>
+  c.html(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notion Clone API</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      body { margin: 0; }
+      .swagger-ui .topbar { background-color: #1e1e2e; }
+      .swagger-ui .topbar-wrapper img { content: none; }
+      .swagger-ui .topbar-wrapper::before {
+        content: "Notion Clone API";
+        color: #cdd6f4;
+        font-size: 1.1rem;
+        font-weight: 600;
+        padding-left: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin="anonymous"></script>
+    <script>
+      window.onload = async () => {
+        // Fetch spec and rewrite servers[] so every "Try it out" request
+        // goes to THIS host — works on localhost, wrangler dev, and Replit proxy.
+        const spec = await fetch('/openapi.json').then(r => r.json());
+        spec.servers = [{ url: window.location.origin, description: 'Current server' }];
+
+        window.ui = SwaggerUIBundle({
+          spec,
+          dom_id: '#swagger-ui',
+          deepLinking: true,
+          persistAuthorization: true,
+          displayRequestDuration: true,
+          tryItOutEnabled: true,
+          filter: true,
+          defaultModelsExpandDepth: 1,
+          defaultModelExpandDepth: 2,
+        });
+      };
+    </script>
+  </body>
+</html>`)
+);
 
 // Returns current quota for the caller's IP — does NOT consume a slot
 app.get('/rate-limit/status', async (c) => {
