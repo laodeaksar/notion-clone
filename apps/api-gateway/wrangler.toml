@@ -3,32 +3,46 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CARA DEPLOY:
+# ══════════════════════════════════════════════════════════════════════════════
+# CARA DEPLOY KE CLOUDFLARE WORKERS
+# ══════════════════════════════════════════════════════════════════════════════
 #
-#   1. Install wrangler:        pnpm add -D wrangler  (di dalam apps/api-gateway)
-#   2. Login ke Cloudflare:     pnpm exec wrangler login
-#   3. Set JWT secret:          pnpm exec wrangler secret put JWT_SECRET
-#   4. Deploy:                  pnpm exec wrangler deploy
+# Jalankan perintah di bawah ini dari folder apps/api-gateway/:
 #
-# CATATAN PENTING - Service URLs:
-#   Cloudflare Workers tidak bisa menjangkau `localhost`.
-#   Isi [vars] di bawah dengan URL publik dari microservices kamu
-#   (misalnya URL Replit yang sudah di-deploy, atau layanan terpisah).
-# ──────────────────────────────────────────────────────────────────────────────
+#   1. Login ke Cloudflare:
+#        pnpm exec wrangler login
+#
+#   2. Buat KV namespace untuk rate limiting:
+#        pnpm exec wrangler kv namespace create RATE_LIMIT_KV
+#      → Salin "id" dari output, tempel ke [[kv_namespaces]] di bawah.
+#
+#   3. Simpan JWT secret (jangan ditulis di file ini):
+#        pnpm exec wrangler secret put JWT_SECRET
+#
+#   4. Edit bagian [vars] di bawah — isi URL publik microservices kamu.
+#
+#   5. Deploy:
+#        pnpm exec wrangler deploy
+#
+# ══════════════════════════════════════════════════════════════════════════════
 
+# ── KV Namespace untuk Rate Limiting ──────────────────────────────────────────
+# Jalankan: pnpm exec wrangler kv namespace create RATE_LIMIT_KV
+# Lalu tempel id-nya di bawah (ganti "GANTI-DENGAN-ID-DARI-WRANGLER").
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id      = "GANTI-DENGAN-ID-DARI-WRANGLER"
+
+# ── Environment Variables ──────────────────────────────────────────────────────
+# Cloudflare Workers tidak bisa menjangkau `localhost`.
+# Ganti nilai di bawah dengan URL publik dari setiap microservice.
+# Contoh jika semua microservice di-deploy di Replit:
+#   AUTH_SERVICE_URL = "https://nama-replit-kamu.replit.app/auth"
 [vars]
 PAGE_SERVICE_URL  = "https://GANTI-DENGAN-URL-PAGE-SERVICE"
 AUTH_SERVICE_URL  = "https://GANTI-DENGAN-URL-AUTH-SERVICE"
 BLOCK_SERVICE_URL = "https://GANTI-DENGAN-URL-BLOCK-SERVICE"
 FILE_SERVICE_URL  = "https://GANTI-DENGAN-URL-FILE-SERVICE"
 
-# JWT_SECRET jangan diisi di sini — simpan sebagai secret:
+# JWT_SECRET JANGAN diisi di sini — gunakan:
 #   pnpm exec wrangler secret put JWT_SECRET
-
-[build]
-command = ""
-
-[[rules]]
-type = "ESModule"
-globs = ["**/*.ts"]

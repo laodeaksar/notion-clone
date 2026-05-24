@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { getCookie } from 'hono/cookie';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type Bindings = {
   JWT_SECRET: string;
@@ -8,15 +9,59 @@ type Bindings = {
   AUTH_SERVICE_URL: string;
   BLOCK_SERVICE_URL: string;
   FILE_SERVICE_URL: string;
+  RATE_LIMIT_KV: KVNamespace; // Cloudflare KV namespace (optional in local dev)
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type RateLimitEntry = { count: number; until: number };
 
-app.use('*', cors());
+// ─── Rate Limiting ───────────────────────────────────────────────────────────
 
-function getEnv(c: { env?: Partial<Bindings> }, key: keyof Bindings, fallback: string): string {
+const RATE_LIMIT_MAX    = 100;   // max requests
+const RATE_LIMIT_WINDOW = 60;    // seconds
+
+// In-memory fallback for local Bun development (not shared across instances)
+const localRateMap = new Map<string, RateLimitEntry>();
+
+async function checkRateLimit(ip: string, kv?: KVNamespace): Promise<boolean> {
+  const now = Date.now();
+
+  if (kv) {
+    // ── Cloudflare KV (persistent, shared across all Workers instances) ──
+    const key = `rl:${ip}`;
+    const raw = await kv.get(key);
+    const entry: RateLimitEntry = raw
+      ? JSON.parse(raw)
+      : { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
+
+    if (now > entry.until) {
+      entry.count = 0;
+      entry.until = now + RATE_LIMIT_WINDOW * 1000;
+    }
+    entry.count++;
+
+    // TTL auto-expires the key so KV doesn't accumulate stale entries
+    const ttlSeconds = Math.max(1, Math.ceil((entry.until - now) / 1000));
+    await kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds });
+
+    return entry.count <= RATE_LIMIT_MAX;
+  } else {
+    // ── In-memory fallback for local Bun dev ──
+    const entry = localRateMap.get(ip) ?? { count: 0, until: now + RATE_LIMIT_WINDOW * 1000 };
+    if (now > entry.until) {
+      entry.count = 0;
+      entry.until = now + RATE_LIMIT_WINDOW * 1000;
+    }
+    entry.count++;
+    localRateMap.set(ip, entry);
+    return entry.count <= RATE_LIMIT_MAX;
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getEnv(c: { env?: Partial<Bindings> }, key: Exclude<keyof Bindings, 'RATE_LIMIT_KV'>, fallback: string): string {
   const fromBinding = c.env?.[key];
-  if (fromBinding) return fromBinding;
+  if (fromBinding) return fromBinding as string;
   if (typeof process !== 'undefined' && process.env[key]) return process.env[key] as string;
   return fallback;
 }
@@ -39,7 +84,7 @@ async function verifyJWT(token: string, secret: string): Promise<Record<string, 
     const data = encoder.encode(`${headerB64}.${payloadB64}`);
     const sig = signatureB64.replace(/-/g, '+').replace(/_/g, '/');
     const padded = sig + '='.repeat((4 - (sig.length % 4)) % 4);
-    const signature = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+    const signature = Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0));
 
     const valid = await crypto.subtle.verify('HMAC', key, signature, data);
     if (!valid) return null;
@@ -54,13 +99,38 @@ async function verifyJWT(token: string, secret: string): Promise<Record<string, 
   }
 }
 
-async function extractToken(c: { req: { header: (k: string) => string | undefined; raw: Request } }): Promise<string | null> {
+async function extractToken(c: { req: { header: (k: string) => string | undefined } }): Promise<string | null> {
   const auth = c.req.header('authorization');
   if (auth?.startsWith('Bearer ')) return auth.slice(7);
   const cookieHeader = c.req.header('cookie') ?? '';
   const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
   return match ? match[1] : null;
 }
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.use('*', cors());
+
+// Rate limit middleware — uses KV in Cloudflare Workers, in-memory locally
+app.use('*', async (c, next) => {
+  // cf-connecting-ip is set by Cloudflare and cannot be spoofed
+  const ip =
+    c.req.header('cf-connecting-ip') ||
+    c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
+    'unknown';
+
+  const kv = (c.env as Partial<Bindings>)?.RATE_LIMIT_KV;
+  const allowed = await checkRateLimit(ip, kv);
+
+  if (!allowed) {
+    return c.json({ error: 'Too many requests' }, 429);
+  }
+  return next();
+});
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get('/health', (c) => c.json({ status: 'ok', service: 'api-gateway' }));
 
@@ -121,7 +191,7 @@ app.post('/pages', async (c) => {
 });
 
 app.get('/pages/:id', async (c) => {
-  const pageServiceUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const pageServiceUrl  = getEnv(c, 'PAGE_SERVICE_URL',  'http://localhost:8082');
   const blockServiceUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
   const include = c.req.query('include');
   const pageRes = await fetch(`${pageServiceUrl}/pages/${c.req.param('id')}`);
@@ -179,8 +249,12 @@ app.post('/upload', async (c) => {
 
 app.all('*', (c) => c.json({ error: 'not found' }, 404));
 
+// ─── Entrypoints ─────────────────────────────────────────────────────────────
+
+// Cloudflare Workers: uses this export as the fetch handler
 export default app;
 
+// Bun local dev: app.fire() reads PORT from process.env and starts the server
 if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
   app.fire();
 }
