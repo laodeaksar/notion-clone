@@ -1,0 +1,9 @@
+{
+	"/": [],
+	"/api/upload": [
+		"src/routes/api/upload/+server.ts"
+	],
+	"/page/[id]": [
+		"src/routes/page/[id]/+page.server.ts"
+	]
+}
