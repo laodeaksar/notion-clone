@@ -1,17 +1,17 @@
-import type { RequestEvent } from '@sveltejs/kit';
-import { z } from 'zod';
+import { error } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 import { API_GATEWAY_URL } from '$env/dynamic/private';
 
-const paramsSchema = z.object({ id: z.string().min(1) });
+export const load: PageServerLoad = async ({ params, fetch }) => {
+  const { id } = params;
 
-export async function load(event: RequestEvent) {
-  const result = paramsSchema.safeParse(event.params);
-  if (!result.success) {
-    return { status: 400 };
-  }
-  const { id } = result.data;
+  if (!id) error(400, 'Page ID is required');
+
   const res = await fetch(`${API_GATEWAY_URL}/pages/${id}`);
-  if (!res.ok) return { status: res.status };
+
+  if (res.status === 404) error(404, 'Page not found');
+  if (!res.ok) error(res.status, 'Failed to load page');
+
   const { page } = await res.json();
   return { page };
-}
+};

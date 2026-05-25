@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { nameFromPublicId } from '$lib/utils';
 
 export interface GalleryFile {
   publicId:   string;
@@ -13,11 +14,6 @@ export interface GalleryData {
   truncated: boolean;
   cursor:    string | null;
   error:     string | null;
-}
-
-function nameFromPublicId(publicId: string): string {
-  const last = publicId.split('/').pop() ?? publicId;
-  return last.replace(/_[a-z0-9]{6,}$/i, '').replace(/_/g, ' ') || last;
 }
 
 export const load: PageServerLoad = async ({ fetch, url }): Promise<GalleryData> => {

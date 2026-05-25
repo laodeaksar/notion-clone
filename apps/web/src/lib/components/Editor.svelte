@@ -11,7 +11,11 @@
   import * as Y from 'yjs';
   import { PUBLIC_HOCUSPOCUS_URL } from '$env/dynamic/public';
 
-  export let data: any;
+  interface PageData {
+    page?: { id: string; title?: string } | null;
+  }
+
+  export let data: PageData;
 
   let editorContainer: HTMLDivElement | null = null;
   let fileInput: HTMLInputElement | null     = null;

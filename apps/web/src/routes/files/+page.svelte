@@ -2,6 +2,7 @@
   import FileUpload from '$lib/components/FileUpload.svelte';
   import type { PageData } from './$types';
   import type { GalleryFile } from './+page.server';
+  import { nameFromPublicId, isImageUrl, formatBytes } from '$lib/utils';
 
   export let data: PageData;
 
@@ -20,22 +21,6 @@
   let confirmId:  string | null    = null;
   let loadingMore: boolean         = false;
   let loadMoreError: string | null = null;
-
-  function nameFromPublicId(publicId: string): string {
-    const last = publicId.split('/').pop() ?? publicId;
-    return last.replace(/_[a-z0-9]{6,}$/i, '').replace(/_/g, ' ') || last;
-  }
-
-  function isImage(url: string): boolean {
-    return /\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(url)
-      || url.includes('/image/upload/');
-  }
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024)       return `${bytes} B`;
-    if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(1)} MB`;
-  }
 
   function onUploaded(e: CustomEvent<{ url: string; publicId: string; name: string }>) {
     const { url, publicId, name } = e.detail;
@@ -192,7 +177,7 @@
 
               <!-- Preview -->
               <div class="aspect-square w-full overflow-hidden bg-slate-100">
-                {#if isImage(file.url)}
+                {#if isImageUrl(file.url)}
                   <img
                     src={file.url}
                     alt={file.name}
@@ -209,7 +194,7 @@
               <div class="px-2 py-1.5">
                 <p class="truncate text-xs font-medium text-slate-700" title={file.name}>{file.name}</p>
                 {#if file.size > 0}
-                  <p class="text-[10px] text-slate-400">{formatSize(file.size)}</p>
+                  <p class="text-[10px] text-slate-400">{formatBytes(file.size)}</p>
                 {/if}
               </div>
 

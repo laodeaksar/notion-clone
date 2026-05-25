@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { formatBytes } from '$lib/utils';
 
   export let maxFiles: number = 20;
   export let accept: string = '*/*';
@@ -37,12 +38,6 @@
     if (t.includes('word') || t.includes('document')) return '📝';
     if (t.includes('sheet') || t.includes('excel')) return '📊';
     return '📁';
-  }
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function makePreview(file: File): Promise<string | undefined> {
@@ -210,7 +205,7 @@
           <!-- Info + progress -->
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-slate-700">{item.file.name}</p>
-            <p class="text-xs text-slate-400">{formatSize(item.file.size)}</p>
+            <p class="text-xs text-slate-400">{formatBytes(item.file.size)}</p>
             {#if item.status === 'uploading'}
               <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
@@ -267,7 +262,7 @@
             <!-- Info -->
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-slate-700">{item.file.name}</p>
-              <p class="text-xs text-slate-400">{formatSize(item.file.size)}</p>
+              <p class="text-xs text-slate-400">{formatBytes(item.file.size)}</p>
             </div>
 
             <!-- Actions -->
