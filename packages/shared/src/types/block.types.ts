@@ -1,28 +1,28 @@
-import { z } from 'zod';
+import * as v from 'valibot';
 
-export const BlockInputSchema = z.object({
-  id: z.string().optional(),
-  pageId: z.string(),
-  type: z.string(),
-  content: z.any(),
-  order: z.number().optional()
+export const BlockInputSchema = v.object({
+  id:      v.optional(v.string()),
+  pageId:  v.string(),
+  type:    v.string(),
+  content: v.unknown(),
+  order:   v.optional(v.number())
 });
 
-export const BlockUpdateSchema = z.object({
-  type: z.string().optional(),
-  content: z.any().optional(),
-  order: z.number().optional()
+export const BlockUpdateSchema = v.object({
+  type:    v.optional(v.string()),
+  content: v.optional(v.unknown()),
+  order:   v.optional(v.number())
 });
 
-export type BlockInput = z.infer<typeof BlockInputSchema>;
-export type BlockUpdate = z.infer<typeof BlockUpdateSchema>;
+export type BlockInput  = v.InferInput<typeof BlockInputSchema>;
+export type BlockUpdate = v.InferInput<typeof BlockUpdateSchema>;
 
 export type Block = {
-  id: string;
-  pageId: string;
-  type: string;
-  content: unknown;
-  order: number;
+  id:        string;
+  pageId:    string;
+  type:      string;
+  content:   unknown;
+  order:     number;
   createdAt: Date;
   updatedAt: Date;
 };

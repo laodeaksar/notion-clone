@@ -1,15 +1,15 @@
-import { z } from 'zod';
+import * as v from 'valibot';
 
-export const UploadInputSchema = z.object({
-  data: z.string().min(1),
-  filename: z.string().optional(),
-  folder: z.string().optional()
+export const UploadInputSchema = v.object({
+  data:     v.pipe(v.string(), v.minLength(1)),
+  filename: v.optional(v.string()),
+  folder:   v.optional(v.string())
 });
 
-export type UploadInput = z.infer<typeof UploadInputSchema>;
+export type UploadInput = v.InferInput<typeof UploadInputSchema>;
 
 export type UploadResult = {
-  url: string;
+  url:      string;
   publicId: string;
   provider: 'r2';
 };

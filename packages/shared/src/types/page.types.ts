@@ -1,22 +1,22 @@
-import { z } from 'zod';
+import * as v from 'valibot';
 
-export const PageInputSchema = z.object({
-  title: z.string().min(1),
-  parentId: z.string().nullable().optional()
+export const PageInputSchema = v.object({
+  title:    v.pipe(v.string(), v.minLength(1)),
+  parentId: v.optional(v.nullable(v.string()))
 });
 
-export const PageUpdateSchema = z.object({
-  title: z.string().min(1).optional(),
-  parentId: z.string().nullable().optional()
+export const PageUpdateSchema = v.object({
+  title:    v.optional(v.pipe(v.string(), v.minLength(1))),
+  parentId: v.optional(v.nullable(v.string()))
 });
 
-export type PageInput = z.infer<typeof PageInputSchema>;
-export type PageUpdate = z.infer<typeof PageUpdateSchema>;
+export type PageInput  = v.InferInput<typeof PageInputSchema>;
+export type PageUpdate = v.InferInput<typeof PageUpdateSchema>;
 
 export type Page = {
-  id: string;
-  title: string;
-  parentId: string | null;
+  id:        string;
+  title:     string;
+  parentId:  string | null;
   createdAt: Date;
   updatedAt: Date;
 };

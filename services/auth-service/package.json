@@ -10,13 +10,14 @@
   },
   "dependencies": {
     "@hono/valibot-validator": "^0.6.1",
-    "@workspace/db": "workspace:*",
-    "hono": "^4.12.22",
-    "valibot": "^1.4.0"
+    "@workspace/db":     "workspace:*",
+    "@workspace/shared": "workspace:*",
+    "hono":              "^4.12.22",
+    "valibot":           "^1.4.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260524.1",
     "typescript": "^5.4.0",
-    "wrangler": "^4.94.0"
+    "wrangler":   "^4.94.0"
   }
 }

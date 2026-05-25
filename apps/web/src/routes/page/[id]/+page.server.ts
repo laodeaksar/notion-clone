@@ -12,6 +12,6 @@ export async function load(event: RequestEvent) {
   const { id } = result.data;
   const res = await fetch(`${API_GATEWAY_URL}/pages/${id}`);
   if (!res.ok) return { status: res.status };
-  const page = await res.json();
-  return { props: { page } };
+  const { page } = await res.json();
+  return { page };
 }

@@ -1,69 +1,69 @@
-import { z } from 'zod';
+import * as v from 'valibot';
 
 // ─── Block Events ─────────────────────────────────────────────────────────────
 
-export const BlockCreatedPayloadSchema = z.object({
-  blockId: z.string(),
-  pageId: z.string()
+export const BlockCreatedPayloadSchema = v.object({
+  blockId: v.string(),
+  pageId:  v.string()
 });
 
-export const BlockUpdatedPayloadSchema = z.object({
-  blockId: z.string(),
-  pageId: z.string()
+export const BlockUpdatedPayloadSchema = v.object({
+  blockId: v.string(),
+  pageId:  v.string()
 });
 
-export const BlockDeletedPayloadSchema = z.object({
-  blockId: z.string(),
-  pageId: z.string()
+export const BlockDeletedPayloadSchema = v.object({
+  blockId: v.string(),
+  pageId:  v.string()
 });
 
 export type BlockEvent =
-  | { type: 'block.created'; payload: z.infer<typeof BlockCreatedPayloadSchema> }
-  | { type: 'block.updated'; payload: z.infer<typeof BlockUpdatedPayloadSchema> }
-  | { type: 'block.deleted'; payload: z.infer<typeof BlockDeletedPayloadSchema> };
+  | { type: 'block.created'; payload: v.InferInput<typeof BlockCreatedPayloadSchema> }
+  | { type: 'block.updated'; payload: v.InferInput<typeof BlockUpdatedPayloadSchema> }
+  | { type: 'block.deleted'; payload: v.InferInput<typeof BlockDeletedPayloadSchema> };
 
 // ─── Page Events ──────────────────────────────────────────────────────────────
 
-export const PageCreatedPayloadSchema = z.object({
-  pageId: z.string(),
-  parentId: z.string().nullable().optional()
+export const PageCreatedPayloadSchema = v.object({
+  pageId:   v.string(),
+  parentId: v.optional(v.nullable(v.string()))
 });
 
-export const PageUpdatedPayloadSchema = z.object({
-  pageId: z.string()
+export const PageUpdatedPayloadSchema = v.object({
+  pageId: v.string()
 });
 
-export const PageDeletedPayloadSchema = z.object({
-  pageId: z.string()
+export const PageDeletedPayloadSchema = v.object({
+  pageId: v.string()
 });
 
 export type PageEvent =
-  | { type: 'page.created'; payload: z.infer<typeof PageCreatedPayloadSchema> }
-  | { type: 'page.updated'; payload: z.infer<typeof PageUpdatedPayloadSchema> }
-  | { type: 'page.deleted'; payload: z.infer<typeof PageDeletedPayloadSchema> };
+  | { type: 'page.created'; payload: v.InferInput<typeof PageCreatedPayloadSchema> }
+  | { type: 'page.updated'; payload: v.InferInput<typeof PageUpdatedPayloadSchema> }
+  | { type: 'page.deleted'; payload: v.InferInput<typeof PageDeletedPayloadSchema> };
 
 // ─── File Events ──────────────────────────────────────────────────────────────
 
-export const FileUploadedPayloadSchema = z.object({
-  publicId: z.string(),
-  url: z.string(),
-  provider: z.enum(['r2'])
+export const FileUploadedPayloadSchema = v.object({
+  publicId: v.string(),
+  url:      v.string(),
+  provider: v.picklist(['r2'])
 });
 
-export const FileDeletedPayloadSchema = z.object({
-  publicId: z.string()
+export const FileDeletedPayloadSchema = v.object({
+  publicId: v.string()
 });
 
-export const FileMovedPayloadSchema = z.object({
-  oldPublicId: z.string(),
-  publicId: z.string(),
-  url: z.string()
+export const FileMovedPayloadSchema = v.object({
+  oldPublicId: v.string(),
+  publicId:    v.string(),
+  url:         v.string()
 });
 
 export type FileEvent =
-  | { type: 'file.uploaded'; payload: z.infer<typeof FileUploadedPayloadSchema> }
-  | { type: 'file.deleted'; payload: z.infer<typeof FileDeletedPayloadSchema> }
-  | { type: 'file.moved'; payload: z.infer<typeof FileMovedPayloadSchema> };
+  | { type: 'file.uploaded'; payload: v.InferInput<typeof FileUploadedPayloadSchema> }
+  | { type: 'file.deleted'; payload: v.InferInput<typeof FileDeletedPayloadSchema> }
+  | { type: 'file.moved';   payload: v.InferInput<typeof FileMovedPayloadSchema> };
 
 // ─── Union ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +71,4 @@ export type AppEvent = BlockEvent | PageEvent | FileEvent;
 
 export type EventType = AppEvent['type'];
 
-export type EventPayload<T extends EventType> = Extract<
-  AppEvent,
-  { type: T }
->['payload'];
+export type EventPayload<T extends EventType> = Extract<AppEvent, { type: T }>['payload'];

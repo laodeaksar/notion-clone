@@ -7,3 +7,4 @@ export * from './types/file.types';
 export * from './middleware/auth';
 export * from './events/events';
 export * from './events/publisher';
+export * from './lib/jwt';
