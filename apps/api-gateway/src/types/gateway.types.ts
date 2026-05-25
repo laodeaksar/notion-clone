@@ -4,6 +4,7 @@ import * as v from 'valibot';
 
 export type Bindings = {
   JWT_SECRET: string;
+  DATABASE_URL: string;
   PAGE_SERVICE_URL: string;
   AUTH_SERVICE_URL: string;
   BLOCK_SERVICE_URL: string;
