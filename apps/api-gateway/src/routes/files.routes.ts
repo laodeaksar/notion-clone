@@ -185,6 +185,77 @@ fileRoutes.get('/files', requireAuth, async (c) => {
 });
 
 /**
+ * GET /files/stats
+ *
+ * Returns aggregate storage statistics queried directly from the DB.
+ * All three aggregates run in parallel for minimal latency.
+ *
+ * Response:
+ *   {
+ *     totalFiles: number,
+ *     totalBytes: number,
+ *     byUploader: { uploadedBy: string | null, fileCount: number, totalBytes: number }[],
+ *     byPage:     { pageId:     string | null, fileCount: number, totalBytes: number }[]
+ *   }
+ *
+ * byUploader and byPage are sorted by fileCount DESC (busiest first).
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   503 — database not configured
+ */
+fileRoutes.get('/files/stats', requireAuth, async (c) => {
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const db = createDb(dbUrl);
+
+  // Run all three aggregates concurrently
+  const [totalsRows, byUploaderRows, byPageRows] = await Promise.all([
+    db.select({
+      totalFiles: count(),
+      totalBytes: sum(files.size),
+    }).from(files),
+
+    db.select({
+      uploadedBy: files.uploadedBy,
+      fileCount:  count(),
+      totalBytes: sum(files.size),
+    })
+    .from(files)
+    .groupBy(files.uploadedBy)
+    .orderBy(desc(count())),
+
+    db.select({
+      pageId:    files.pageId,
+      fileCount: count(),
+      totalBytes: sum(files.size),
+    })
+    .from(files)
+    .groupBy(files.pageId)
+    .orderBy(desc(count())),
+  ]);
+
+  const totals = totalsRows[0];
+
+  return c.json({
+    // sum() returns a string from the SQL driver; coerce to number
+    totalFiles: totals?.totalFiles ?? 0,
+    totalBytes: Number(totals?.totalBytes ?? 0),
+    byUploader: byUploaderRows.map((r) => ({
+      uploadedBy: r.uploadedBy,
+      fileCount:  r.fileCount,
+      totalBytes: Number(r.totalBytes ?? 0),
+    })),
+    byPage: byPageRows.map((r) => ({
+      pageId:    r.pageId,
+      fileCount: r.fileCount,
+      totalBytes: Number(r.totalBytes ?? 0),
+    })),
+  });
+});
+
+/**
  * GET /files/*/url
  *
  * Issues a short-lived signed download URL for any authenticated user.
