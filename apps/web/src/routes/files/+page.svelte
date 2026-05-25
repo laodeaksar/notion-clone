@@ -8,8 +8,10 @@
     addedAt:  Date;
   }
 
-  let session: UploadedFile[] = [];
-  let copiedId: string | null = null;
+  let session:   UploadedFile[] = [];
+  let copiedId:  string | null  = null;
+  let deletingId: string | null = null;
+  let confirmId:  string | null = null;
 
   function onUploaded(e: CustomEvent<{ url: string; publicId: string; name: string }>) {
     session = [{ ...e.detail, addedAt: new Date() }, ...session];
@@ -24,6 +26,35 @@
     await navigator.clipboard.writeText(url).catch(() => {});
     copiedId = id;
     setTimeout(() => { copiedId = null; }, 2000);
+  }
+
+  function requestDelete(publicId: string) {
+    confirmId = publicId;
+  }
+
+  function cancelDelete() {
+    confirmId = null;
+  }
+
+  async function confirmDelete(publicId: string) {
+    confirmId  = null;
+    deletingId = publicId;
+
+    try {
+      const res = await fetch(`/api/files?publicId=${encodeURIComponent(publicId)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        session = session.filter(f => f.publicId !== publicId);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Delete failed' }));
+        alert(err.error ?? 'Delete failed');
+      }
+    } catch {
+      alert('Network error — could not delete file');
+    } finally {
+      deletingId = null;
+    }
   }
 </script>
 
@@ -74,14 +105,20 @@
 
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {#each session as file (file.publicId)}
-            <div class="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {@const isDeleting = deletingId === file.publicId}
+            {@const isConfirming = confirmId === file.publicId}
+
+            <div class="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50
+              {isDeleting ? 'opacity-50 pointer-events-none' : ''}">
+
               <!-- Preview -->
               <div class="aspect-square w-full overflow-hidden bg-slate-100">
                 {#if isImage(file.url)}
                   <img
                     src={file.url}
                     alt={file.name}
-                    class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105
+                      {isDeleting ? 'blur-sm' : ''}"
                     loading="lazy"
                   />
                 {:else}
@@ -89,29 +126,69 @@
                 {/if}
               </div>
 
-              <!-- Info overlay -->
+              <!-- Filename -->
               <div class="p-2">
                 <p class="truncate text-xs font-medium text-slate-600">{file.name}</p>
               </div>
 
-              <!-- Hover actions -->
-              <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                <button
-                  type="button"
-                  class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow hover:bg-violet-50 transition-colors"
-                  on:click={() => copyUrl(file.url, file.publicId)}
-                >
-                  {copiedId === file.publicId ? '✓ Copied!' : 'Copy URL'}
-                </button>
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-violet-50 transition-colors"
-                >
-                  Open ↗
-                </a>
-              </div>
+              <!-- Deleting spinner overlay -->
+              {#if isDeleting}
+                <div class="absolute inset-0 flex items-center justify-center bg-white/80">
+                  <div class="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-red-500"></div>
+                </div>
+              {/if}
+
+              <!-- Delete confirm overlay -->
+              {#if isConfirming}
+                <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 p-3">
+                  <p class="text-center text-xs font-semibold text-white leading-tight">
+                    Delete from Cloudinary?
+                  </p>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      class="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-red-600 transition-colors"
+                      on:click={() => confirmDelete(file.publicId)}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white transition-colors"
+                      on:click={cancelDelete}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+              <!-- Normal hover actions -->
+              {:else if !isDeleting}
+                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/50 opacity-0 transition-opacity duration-150 group-hover:opacity-100 p-2">
+                  <button
+                    type="button"
+                    class="w-full rounded-lg bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow hover:bg-violet-50 transition-colors"
+                    on:click={() => copyUrl(file.url, file.publicId)}
+                  >
+                    {copiedId === file.publicId ? '✓ Copied!' : 'Copy URL'}
+                  </button>
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="w-full rounded-lg bg-white/90 px-2 py-1.5 text-center text-xs font-semibold text-slate-700 shadow hover:bg-violet-50 transition-colors"
+                  >
+                    Open ↗
+                  </a>
+                  <button
+                    type="button"
+                    class="w-full rounded-lg bg-red-500/90 px-2 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600 transition-colors"
+                    on:click={() => requestDelete(file.publicId)}
+                  >
+                    🗑 Delete
+                  </button>
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
