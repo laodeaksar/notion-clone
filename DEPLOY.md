@@ -179,6 +179,92 @@ Di GitHub repo → tab **Actions** → pilih workflow **Deploy to Cloudflare Wor
 
 ---
 
+## Custom Domain untuk Cloudflare Pages
+
+Secara default web tersedia di `https://notion-web.pages.dev`. Jika ingin pakai domain sendiri (mis. `app.yourdomain.com`), ikuti langkah berikut.
+
+### Prasyarat
+- Domain sudah terdaftar dan nameserver-nya diarahkan ke Cloudflare (domain harus di-manage di Cloudflare DNS)
+- Project Pages `notion-web` sudah berhasil di-deploy minimal sekali
+
+---
+
+### Langkah 1 — Tambah Custom Domain di Cloudflare Pages
+
+1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
+2. Klik project **notion-web**
+3. Buka tab **Custom domains**
+4. Klik **Set up a custom domain**
+5. Masukkan domain kamu, mis: `app.yourdomain.com`
+6. Klik **Continue**
+
+Cloudflare akan otomatis membuat DNS record `CNAME` yang mengarah ke `notion-web.pages.dev`.
+
+7. Klik **Activate domain**
+
+Tunggu beberapa menit hingga SSL certificate diterbitkan otomatis.
+
+---
+
+### Langkah 2 — Update Environment Variables
+
+Setelah custom domain aktif, update URL di GitHub Actions Variables agar frontend tahu alamat publiknya:
+
+Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions** → tab **Variables**:
+
+| Nama Variable | Nilai Baru |
+|---------------|-----------|
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` *(tidak berubah)* |
+| `PUBLIC_HOCUSPOCUS_URL` | `wss://YOUR-HOCUSPOCUS-HOST` *(tidak berubah)* |
+
+> Tidak ada perubahan khusus yang diperlukan untuk domain web — Cloudflare Pages otomatis melayani domain baru tanpa rebuild.
+
+---
+
+### Langkah 3 — (Opsional) Custom Domain untuk API Gateway
+
+Jika ingin API gateway juga pakai custom domain (mis. `api.yourdomain.com`):
+
+1. Cloudflare dashboard → **Workers & Pages** → pilih worker **notion-api**
+2. Tab **Settings** → **Triggers** → **Custom Domains**
+3. Klik **Add Custom Domain** → masukkan `api.yourdomain.com`
+4. Cloudflare otomatis atur DNS dan SSL
+
+Setelah aktif, update GitHub Actions Variables:
+
+| Nama Variable | Nilai Baru |
+|---------------|-----------|
+| `AUTH_SERVICE_URL` | *(tetap pakai workers.dev)* |
+| `API_GATEWAY_URL` | `https://api.yourdomain.com` |
+| `PUBLIC_API_GATEWAY_URL` | `https://api.yourdomain.com` |
+
+Lalu trigger ulang workflow `deploy-web` agar build baru menggunakan URL tersebut.
+
+---
+
+### Langkah 4 — Verifikasi
+
+Setelah semua aktif, buka:
+
+```
+https://app.yourdomain.com
+```
+
+Cek juga SSL certificate aktif (gembok hijau di browser). Jika belum aktif, tunggu maksimal 10 menit atau cek status di tab **Custom domains** di Cloudflare dashboard.
+
+---
+
+### Troubleshooting Custom Domain
+
+| Error | Penyebab | Solusi |
+|-------|----------|--------|
+| `DNS_PROBE_FINISHED_NXDOMAIN` | DNS belum propagasi | Tunggu 5-30 menit |
+| `SSL_ERROR_RX_RECORD_TOO_LONG` | Certificate belum ready | Tunggu 5-10 menit lagi |
+| Domain aktif tapi API gagal | `PUBLIC_API_GATEWAY_URL` belum diupdate | Update Variables → trigger ulang deploy-web |
+| `ERR_TOO_MANY_REDIRECTS` | SSL mode Cloudflare konflik | Pastikan SSL mode = **Full (strict)** di Cloudflare |
+
+---
+
 ## Cara 2 — Dashboard Manual (tanpa GitHub)
 
 ### Prasyarat
