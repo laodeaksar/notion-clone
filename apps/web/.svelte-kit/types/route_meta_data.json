@@ -1,8 +1,12 @@
 {
 	"/": [],
+	"/api/files": [
+		"src/routes/api/files/+server.ts"
+	],
 	"/api/upload": [
 		"src/routes/api/upload/+server.ts"
 	],
+	"/files": [],
 	"/page/[id]": [
 		"src/routes/page/[id]/+page.server.ts"
 	]
