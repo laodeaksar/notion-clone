@@ -9,7 +9,12 @@ export const authRoutes = new Hono<HonoEnv>()
 
   .post('/register', vValidator('json', RegisterSchema), async (c) => {
     const db  = createDb(c.env.DATABASE_URL);
-    const svc = createAuthService(db, c.env.JWT_SECRET);
+    const svc = createAuthService(
+      db,
+      c.env.JWT_SECRET,
+      c.env.UPSTASH_REDIS_REST_URL,
+      c.env.UPSTASH_REDIS_REST_TOKEN
+    );
     try {
       const user = await svc.register(c.req.valid('json'));
       return c.json({ user }, 201);
@@ -20,7 +25,12 @@ export const authRoutes = new Hono<HonoEnv>()
 
   .post('/login', vValidator('json', LoginSchema), async (c) => {
     const db  = createDb(c.env.DATABASE_URL);
-    const svc = createAuthService(db, c.env.JWT_SECRET);
+    const svc = createAuthService(
+      db,
+      c.env.JWT_SECRET,
+      c.env.UPSTASH_REDIS_REST_URL,
+      c.env.UPSTASH_REDIS_REST_TOKEN
+    );
     try {
       const token = await svc.login(c.req.valid('json'));
       return c.json({ token });
