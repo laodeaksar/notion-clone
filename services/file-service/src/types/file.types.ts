@@ -33,6 +33,14 @@ export type ListResult = {
   cursor: string | null;
 };
 
+export type FileMetadata = {
+  publicId: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+  contentType: string | null;
+};
+
 export interface StorageProvider {
   upload(input: UploadInput, bucket: R2Bucket, publicUrl: string, folder: string): Promise<UploadResult>;
   delete(publicId: string, bucket: R2Bucket): Promise<DeleteResult>;

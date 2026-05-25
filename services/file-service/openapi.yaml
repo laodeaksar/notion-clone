@@ -80,6 +80,36 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /upload/{publicId}:
+    get:
+      summary: Get metadata for a single file by its R2 key
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: publicId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The full R2 object key (e.g. "notion-clone/my-file.png")
+      responses:
+        '200':
+          description: File metadata (no object body downloaded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileMetadata'
+        '404':
+          description: Object not found in R2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Request failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     delete:
       summary: Delete a file from R2 by its publicId key
       security:
@@ -156,6 +186,26 @@ components:
         uploadedAt:
           type: string
           format: date-time
+
+    FileMetadata:
+      type: object
+      properties:
+        publicId:
+          type: string
+          description: R2 object key
+        url:
+          type: string
+          description: Public URL of the file
+        size:
+          type: integer
+          description: File size in bytes
+        uploadedAt:
+          type: string
+          format: date-time
+        contentType:
+          type: string
+          nullable: true
+          description: MIME type detected at upload time
 
     ListResult:
       type: object

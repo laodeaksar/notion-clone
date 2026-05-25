@@ -39,6 +39,25 @@ export async function uploadToR2(
   };
 }
 
+export async function headFromR2(
+  publicId: string,
+  bucket: R2Bucket,
+  publicUrl: string
+): Promise<{ publicId: string; url: string; size: number; uploadedAt: string; contentType: string | null }> {
+  const obj = await bucket.head(publicId);
+  if (!obj) {
+    throw new Error(`Object not found: ${publicId}`);
+  }
+  const base = publicUrl.replace(/\/$/, '');
+  return {
+    publicId: obj.key,
+    url: `${base}/${obj.key}`,
+    size: obj.size,
+    uploadedAt: obj.uploaded.toISOString(),
+    contentType: obj.httpMetadata?.contentType ?? null
+  };
+}
+
 export async function listFromR2(
   bucket: R2Bucket,
   publicUrl: string,

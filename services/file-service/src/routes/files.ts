@@ -33,6 +33,18 @@ export const fileRoutes = new Hono<HonoEnv>()
     }
   })
 
+  .get('/:publicId{.+}', async (c) => {
+    const publicId = c.req.param('publicId');
+    const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
+    try {
+      const result = await svc.head(publicId);
+      return c.json(result);
+    } catch (err: any) {
+      const isNotFound = err.message?.includes('not found');
+      return c.json({ error: err.message ?? 'Not found' }, isNotFound ? 404 : 400);
+    }
+  })
+
   .delete('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
     const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
