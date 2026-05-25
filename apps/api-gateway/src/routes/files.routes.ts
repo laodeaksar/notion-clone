@@ -128,6 +128,62 @@ fileRoutes.get('/files', requireAuth, async (c) => {
 });
 
 /**
+ * DELETE /files/*
+ *
+ * Deletes a file in two steps (atomic-ish):
+ *   1. Ownership check — looks up the file record in the DB; only the uploader
+ *      (or any authenticated user when uploadedBy is null) may delete.
+ *   2. Proxy DELETE to the file-service — which removes the R2 object, purges
+ *      the DB record, and publishes the file.deleted event.
+ *
+ * The file id is the R2 object key and may contain slashes (e.g. "uploads/uuid.png"),
+ * so the route uses a wildcard to capture the full key.
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   403 — authenticated but not the file owner
+ *   404 — file not found in DB
+ *   502/503 — file-service unreachable or returned an unexpected response
+ */
+fileRoutes.delete('/files/*', requireAuth, async (c) => {
+  const fileId = c.req.param('*');
+  if (!fileId) return c.json({ error: 'Missing file id' }, 400);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  // ── 1. Ownership check ────────────────────────────────────────────────────
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
+  const file = rows[0] ?? null;
+
+  if (!file) return c.json({ error: 'File not found' }, 404);
+
+  const requesterId = (c.var.jwtPayload as Record<string, unknown>).sub as string | undefined;
+
+  // Only the uploader may delete; if uploadedBy is null (anonymous upload)
+  // any authenticated user is allowed.
+  if (file.uploadedBy && file.uploadedBy !== requesterId) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  // ── 2. Proxy DELETE to file-service (R2 removal + DB purge + event) ───────
+  const fileServiceUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const authHeader     = c.req.header('authorization') ?? '';
+
+  const { data, status } = await proxyJson(
+    fileServiceUrl,
+    `/upload/${fileId}`,
+    {
+      method:  'DELETE',
+      headers: { authorization: authHeader },
+    }
+  );
+
+  return c.json(data, status as any);
+});
+
+/**
  * POST /upload  — proxies to the file-service (unchanged)
  */
 fileRoutes.post(
