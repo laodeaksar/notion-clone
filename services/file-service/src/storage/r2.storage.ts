@@ -100,6 +100,29 @@ export async function listFromR2(
   };
 }
 
+export async function moveInR2(
+  oldPublicId: string,
+  newPublicId: string,
+  bucket: R2Bucket,
+  publicUrl: string
+): Promise<{ oldPublicId: string; publicId: string; url: string; provider: 'r2' }> {
+  const source = await bucket.get(oldPublicId);
+  if (!source) {
+    throw new Error(`Object not found: ${oldPublicId}`);
+  }
+  if (oldPublicId === newPublicId) {
+    throw new Error('newKey is identical to the current key — nothing to move');
+  }
+
+  await bucket.put(newPublicId, source.body, {
+    httpMetadata: source.httpMetadata
+  });
+  await bucket.delete(oldPublicId);
+
+  const url = `${publicUrl.replace(/\/$/, '')}/${newPublicId}`;
+  return { oldPublicId, publicId: newPublicId, url, provider: 'r2' };
+}
+
 export async function deleteFromR2(publicId: string, bucket: R2Bucket): Promise<void> {
   const obj = await bucket.head(publicId);
   if (!obj) {

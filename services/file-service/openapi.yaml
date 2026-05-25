@@ -126,6 +126,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    patch:
+      summary: Rename or move a file to a new R2 key
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: publicId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Current R2 object key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newKey:
+                  type: string
+                  description: Full replacement key — takes precedence over folder/filename (e.g. "archive/photo.png")
+                folder:
+                  type: string
+                  description: Change the folder prefix, keep the existing filename
+                filename:
+                  type: string
+                  description: Change the filename, keep the existing folder
+              minProperties: 1
+      responses:
+        '200':
+          description: File moved — returns new location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoveResult'
+        '404':
+          description: Source object not found in R2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Move failed or invalid body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     delete:
       summary: Delete a file from R2 by its publicId key
       security:
@@ -186,6 +233,22 @@ components:
         deleted:
           type: boolean
           enum: [true]
+
+    MoveResult:
+      type: object
+      properties:
+        oldPublicId:
+          type: string
+          description: The original R2 object key before the move
+        publicId:
+          type: string
+          description: The new R2 object key after the move
+        url:
+          type: string
+          description: Public URL of the file at its new location
+        provider:
+          type: string
+          enum: [r2]
 
     FileListItem:
       type: object

@@ -54,9 +54,16 @@ export const FileDeletedPayloadSchema = z.object({
   publicId: z.string()
 });
 
+export const FileMovedPayloadSchema = z.object({
+  oldPublicId: z.string(),
+  publicId: z.string(),
+  url: z.string()
+});
+
 export type FileEvent =
   | { type: 'file.uploaded'; payload: z.infer<typeof FileUploadedPayloadSchema> }
-  | { type: 'file.deleted'; payload: z.infer<typeof FileDeletedPayloadSchema> };
+  | { type: 'file.deleted'; payload: z.infer<typeof FileDeletedPayloadSchema> }
+  | { type: 'file.moved'; payload: z.infer<typeof FileMovedPayloadSchema> };
 
 // ─── Union ────────────────────────────────────────────────────────────────────
 

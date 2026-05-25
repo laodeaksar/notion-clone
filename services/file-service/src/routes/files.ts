@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import * as v from 'valibot';
-import { UploadInputSchema } from '../types/file.types';
+import { UploadInputSchema, MoveInputSchema } from '../types/file.types';
 import { createFileService } from '../services/file.service';
 import { authMiddleware } from '../middleware/auth';
 import type { HonoEnv } from '../types/env';
@@ -61,6 +61,23 @@ export const fileRoutes = new Hono<HonoEnv>()
     } catch (err: any) {
       const isNotFound = err.message?.includes('not found');
       return c.json({ error: err.message ?? 'Not found' }, isNotFound ? 404 : 400);
+    }
+  })
+
+  .patch('/:publicId{.+}', async (c) => {
+    const publicId = c.req.param('publicId');
+    const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
+    try {
+      const body = await c.req.json().catch(() => null);
+      const parsed = v.safeParse(MoveInputSchema, body);
+      if (!parsed.success) {
+        return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
+      }
+      const result = await svc.move(publicId, parsed.output);
+      return c.json(result);
+    } catch (err: any) {
+      const isNotFound = err.message?.includes('not found');
+      return c.json({ error: err.message ?? 'Move failed' }, isNotFound ? 404 : 400);
     }
   })
 
