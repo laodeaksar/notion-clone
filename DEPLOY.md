@@ -85,8 +85,9 @@ git push origin main
 ```
 
 GitHub Actions akan:
-1. Deploy **auth**, **page**, **block**, **file** service **secara paralel**
-2. Setelah keempat selesai, deploy **api-gateway** secara otomatis
+1. Jalankan **migrasi database** ke Neon — schema selalu up-to-date sebelum kode baru aktif
+2. Deploy **auth**, **page**, **block**, **file** service **secara paralel** (setelah migrasi selesai)
+3. Setelah keempat selesai, deploy **api-gateway** secara otomatis
 
 Pantau progress di tab **Actions** di GitHub repo.
 
@@ -97,11 +98,18 @@ Pantau progress di tab **Actions** di GitHub repo.
 ```
 push to main
      │
+     ▼
+migrate-db  (drizzle-kit migrate → Neon)
+     │
      ├── deploy-auth  ──┐
-     ├── deploy-page  ──┤
-     ├── deploy-block ──┼──► (semua selesai) ──► deploy-gateway
+     ├── deploy-page  ──┤  (paralel)
+     ├── deploy-block ──┼──► deploy-gateway
      └── deploy-file  ──┘
 ```
+
+> **Kenapa migrasi dulu?** Jika schema baru ditambahkan bersamaan dengan kode baru,
+> urutan ini memastikan database sudah siap sebelum Workers aktif — mencegah error
+> "column does not exist" saat traffic masuk di tengah deployment.
 
 ---
 
