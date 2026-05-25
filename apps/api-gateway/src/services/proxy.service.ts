@@ -21,7 +21,8 @@ export async function proxyTo(
   return fetch(url.toString(), {
     method:  options.method ?? 'GET',
     body:    options.body ?? null,
-    headers: options.headers ?? {}
+    headers: options.headers ?? {},
+    signal:  AbortSignal.timeout(10_000)
   });
 }
 

@@ -16,6 +16,13 @@ import { proxyJson } from '../services/proxy.service';
 const REFRESH_THRESHOLD = 5 * 60;
 
 /**
+ * In-flight refresh tracking — prevents concurrent requests from each
+ * triggering a separate refresh when a token is near expiry within the same
+ * Workers isolate. Keyed by refresh token value.
+ */
+const inFlightRefreshes = new Set<string>();
+
+/**
  * autoRefreshMiddleware — runs on every authenticated request.
  *
  * If the access token is valid but expiring within REFRESH_THRESHOLD seconds,
@@ -40,6 +47,10 @@ export const autoRefreshMiddleware = createMiddleware<HonoEnv>(async (c, next) =
   const refreshToken = extractRefreshToken(c as any);
   if (!refreshToken) return next();
 
+  // Prevent concurrent refresh races within the same isolate
+  if (inFlightRefreshes.has(refreshToken)) return next();
+  inFlightRefreshes.add(refreshToken);
+
   const authUrl = getEnv(c, 'AUTH_SERVICE_URL', 'http://localhost:8083');
 
   try {
@@ -50,19 +61,16 @@ export const autoRefreshMiddleware = createMiddleware<HonoEnv>(async (c, next) =
     });
 
     if (status === 200 && data.token) {
-      // Attach new access token cookie — client receives it transparently
-      c.header(
-        'set-cookie',
-        `token=${data.token}; HttpOnly; Path=/; SameSite=Lax`
-      );
+      c.header('set-cookie', `token=${data.token}; HttpOnly; Path=/; SameSite=Lax`);
 
-      // Pre-verify and cache the fresh payload so requireAuth does not repeat work
       const secret       = getEnv(c, 'JWT_SECRET', 'dev-secret');
       const freshPayload = await verifyJWT(data.token, secret);
       if (freshPayload) c.set('jwtPayload', freshPayload);
     }
   } catch {
     // Refresh failed — silently continue; requireAuth will validate the old token
+  } finally {
+    inFlightRefreshes.delete(refreshToken);
   }
 
   return next();
