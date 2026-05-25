@@ -1,6 +1,3 @@
-import type { AppEvent } from './events';
-import type { Queue } from 'bullmq'; // import type only, no runtime cost
-
 // ─── Cloudflare Queues types ──────────────────────────────────────────────────
 // Minimal interfaces that mirror the CF Queues runtime API.
 // Defined here to avoid a hard @cloudflare/workers-types dependency in every
@@ -53,18 +50,8 @@ export function createPublisher<T extends AppEvent>(
 ): Publisher<T> {
   return {
     async publish(event: T): Promise<void> {
-<<<<<<< HEAD
-      if (process.env.REDIS_URL) {
-        const { Queue: BullQueue } = await import('bullmq');
-        const queue: Queue = new BullQueue(queueName, {
-          connection: { url: process.env.REDIS_URL }
-        });
-        await queue.add(event.type, event.payload);
-        await queue.close(); // close connection after job is added
-=======
       if (queue) {
         await queue.send(event, { contentType: 'json' });
->>>>>>> ccd8743 (Integrate Cloudflare Queues for event publishing across services)
         return;
       }
       console.log('[events] (no EVENTS_QUEUE binding — console fallback):', event);
