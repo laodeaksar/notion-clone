@@ -1,15 +1,27 @@
 {
-	"/": [],
+	"/": [
+		"src/routes/+layout.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/api/auth/logout": [
+		"src/routes/api/auth/logout/+server.ts"
+	],
 	"/api/files": [
 		"src/routes/api/files/+server.ts"
 	],
 	"/api/upload": [
 		"src/routes/api/upload/+server.ts"
 	],
+	"/auth": [
+		"src/routes/auth/+page.server.ts",
+		"src/routes/+layout.server.ts"
+	],
 	"/files": [
-		"src/routes/files/+page.server.ts"
+		"src/routes/files/+page.server.ts",
+		"src/routes/+layout.server.ts"
 	],
 	"/page/[id]": [
-		"src/routes/page/[id]/+page.server.ts"
+		"src/routes/page/[id]/+page.server.ts",
+		"src/routes/+layout.server.ts"
 	]
 }

@@ -5,15 +5,17 @@ export const nodes = [
 	() => import('./nodes/1'),
 	() => import('./nodes/2'),
 	() => import('./nodes/3'),
-	() => import('./nodes/4')
+	() => import('./nodes/4'),
+	() => import('./nodes/5')
 ];
 
-export const server_loads = [];
+export const server_loads = [0];
 
 export const dictionary = {
 		"/": [2],
-		"/files": [~3],
-		"/page/[id]": [~4]
+		"/auth": [~3],
+		"/files": [~4],
+		"/page/[id]": [~5]
 	};
 
 export const hooks = {

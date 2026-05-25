@@ -14,22 +14,24 @@ async function signServerJWT(secret: string): Promise<string> {
 
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${header}.${payload}`));
   const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
   return `${header}.${payload}.${sigB64}`;
 }
 
-export async function POST({ request }: RequestEvent) {
-  const token = await signServerJWT(JWT_SECRET);
+function getToken(event: RequestEvent): Promise<string> {
+  const userToken = event.cookies.get('token');
+  if (userToken) return Promise.resolve(userToken);
+  return signServerJWT(JWT_SECRET);
+}
 
+export async function POST(event: RequestEvent) {
+  const { request } = event;
+  const token       = await getToken(event);
   const contentType = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('multipart/form-data')) {
@@ -40,31 +42,21 @@ export async function POST({ request }: RequestEvent) {
       body:    form
     });
     const body = await res.text();
-    return new Response(body, {
-      status:  res.status,
-      headers: { 'content-type': 'application/json' }
-    });
+    return new Response(body, { status: res.status, headers: { 'content-type': 'application/json' } });
   }
 
   const json = await request.json().catch(() => null);
   if (!json) {
     return new Response(JSON.stringify({ error: 'Invalid body' }), {
-      status:  400,
-      headers: { 'content-type': 'application/json' }
+      status: 400, headers: { 'content-type': 'application/json' }
     });
   }
 
   const res = await fetch(`${API_GATEWAY_URL}/upload`, {
     method:  'POST',
-    headers: {
-      'content-type': 'application/json',
-      Authorization:  `Bearer ${token}`
-    },
-    body: JSON.stringify(json)
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+    body:    JSON.stringify(json)
   });
   const body = await res.text();
-  return new Response(body, {
-    status:  res.status,
-    headers: { 'content-type': 'application/json' }
-  });
+  return new Response(body, { status: res.status, headers: { 'content-type': 'application/json' } });
 }

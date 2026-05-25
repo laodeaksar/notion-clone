@@ -22,8 +22,8 @@
   let activeIndex   = 0;
   let menuPosition  = { top: 0, left: 0 };
 
-  let cursorName:  string = 'Anonymous';
-  let cursorColor: string = '#7C3AED';
+  let cursorName:  string  = 'Anonymous';
+  let cursorColor: string  = '#7C3AED';
   let editingName: boolean = false;
   let nameInput:   string  = '';
 
@@ -32,7 +32,15 @@
     '#DC2626', '#DB2777', '#0891B2', '#65A30D'
   ];
 
-  function loadOrCreateIdentity() {
+  function initIdentity() {
+    const loggedInUser = data?.user as { id: string; email: string; name: string | null } | null | undefined;
+
+    if (loggedInUser) {
+      cursorName  = loggedInUser.name ?? loggedInUser.email;
+      cursorColor = CURSOR_COLORS[Math.abs(hashStr(loggedInUser.id)) % CURSOR_COLORS.length];
+      return;
+    }
+
     if (typeof sessionStorage === 'undefined') return;
     const stored = sessionStorage.getItem('editor-identity');
     if (stored) {
@@ -50,11 +58,19 @@
     sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
   }
 
+  function hashStr(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) { h = (Math.imul(31, h) + s.charCodeAt(i)) | 0; }
+    return h;
+  }
+
   function saveName() {
     const trimmed = nameInput.trim();
     if (trimmed) {
       cursorName = trimmed;
-      sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
+      if (!data?.user) {
+        sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
+      }
       provider?.setAwarenessField('user', { name: cursorName, color: cursorColor });
     }
     editingName = false;
@@ -79,10 +95,10 @@
   const updateSlashMenu = () => {
     if (!editor) return;
     const { state } = editor;
-    const from = state.selection.from;
+    const from       = state.selection.from;
     const charBefore = state.doc.textBetween(Math.max(0, from - 1), from, undefined, '\uFFFC');
-    const wasOpen = showSlashMenu;
-    showSlashMenu = charBefore === '/';
+    const wasOpen    = showSlashMenu;
+    showSlashMenu    = charBefore === '/';
     if (!wasOpen && showSlashMenu) activeIndex = 0;
     if (showSlashMenu && editorContainer) {
       const coords        = editor.view.coordsAtPos(from);
@@ -97,8 +113,7 @@
   const insertSlashCommand = async (command: typeof slashItems[number]) => {
     showSlashMenu = false;
     if (!editor) return;
-    const { state } = editor;
-    const from = state.selection.from;
+    const from = editor.state.selection.from;
     editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
     await command.action();
     editor.commands.focus();
@@ -123,7 +138,7 @@
   };
 
   onMount(() => {
-    loadOrCreateIdentity();
+    initIdentity();
 
     const ydoc = new Y.Doc();
     provider = new HocuspocusProvider({
@@ -169,10 +184,7 @@
         Link,
         Image,
         Collaboration.configure({ document: ydoc.get('prosemirror', Y.XmlFragment) }),
-        CollaborationCursor.configure({
-          provider,
-          user: { name: cursorName, color: cursorColor }
-        }),
+        CollaborationCursor.configure({ provider, user: { name: cursorName, color: cursorColor } }),
         SlashMenuKeyboard
       ],
       onUpdate:          updateSlashMenu,
@@ -190,15 +202,9 @@
 
   <!-- Identity bar -->
   <div class="mb-4 flex items-center gap-2">
-    <span
-      class="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
-      style="background:{cursorColor}"
-    ></span>
+    <span class="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style="background:{cursorColor}"></span>
     {#if editingName}
-      <form
-        class="flex items-center gap-1.5"
-        on:submit|preventDefault={saveName}
-      >
+      <form class="flex items-center gap-1.5" on:submit|preventDefault={saveName}>
         <input
           type="text"
           bind:value={nameInput}
@@ -207,30 +213,32 @@
           autofocus
           class="rounded-lg border border-slate-300 px-2 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300"
         />
-        <button
-          type="submit"
-          class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors"
-        >Save</button>
-        <button
-          type="button"
-          class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors"
-          on:click={() => { editingName = false; }}
-        >Cancel</button>
+        <button type="submit" class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors">
+          Save
+        </button>
+        <button type="button" class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors" on:click={() => { editingName = false; }}>
+          Cancel
+        </button>
       </form>
     {:else}
       <span class="text-xs text-slate-500">
-        You are <strong class="font-semibold text-slate-700">{cursorName}</strong>
+        {#if data?.user}
+          Signed in as <strong class="font-semibold text-slate-700">{cursorName}</strong>
+        {:else}
+          You are <strong class="font-semibold text-slate-700">{cursorName}</strong>
+        {/if}
       </span>
-      <button
-        type="button"
-        class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-        on:click={() => { nameInput = cursorName; editingName = true; }}
-      >Change</button>
+      {#if !data?.user}
+        <button
+          type="button"
+          class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          on:click={() => { nameInput = cursorName; editingName = true; }}
+        >Change</button>
+      {/if}
     {/if}
   </div>
 
   <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
-
   <input type="file" accept="image/*" bind:this={fileInput} class="hidden" on:change={handleFileChange} />
 
   {#if showSlashMenu}

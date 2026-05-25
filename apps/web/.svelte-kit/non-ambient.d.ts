@@ -29,20 +29,23 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/files" | "/api/upload" | "/files" | "/page" | "/page/[id]";
+		RouteId(): "/" | "/api" | "/api/auth" | "/api/auth/logout" | "/api/files" | "/api/upload" | "/auth" | "/files" | "/page" | "/page/[id]";
 		RouteParams(): {
 			"/page/[id]": { id: string }
 		};
 		LayoutParams(): {
 			"/": { id?: string | undefined };
 			"/api": Record<string, never>;
+			"/api/auth": Record<string, never>;
+			"/api/auth/logout": Record<string, never>;
 			"/api/files": Record<string, never>;
 			"/api/upload": Record<string, never>;
+			"/auth": Record<string, never>;
 			"/files": Record<string, never>;
 			"/page": { id?: string | undefined };
 			"/page/[id]": { id: string }
 		};
-		Pathname(): "/" | "/api/files" | "/api/upload" | "/files" | `/page/${string}` & {};
+		Pathname(): "/" | "/api/auth/logout" | "/api/files" | "/api/upload" | "/auth" | "/files" | `/page/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}
