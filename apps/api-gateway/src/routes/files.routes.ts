@@ -23,6 +23,47 @@ const FilePatchSchema = v.pipe(
   )
 );
 
+// ─── Signed-URL helpers ───────────────────────────────────────────────────────
+// Short-lived download tokens are HMAC-SHA256 signed with the gateway's
+// JWT_SECRET. The message is `fileId|expiresAt` (unix seconds).
+// We use base64url so the token is safe in a query-string without encoding.
+
+const DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
+
+async function signDownloadToken(
+  fileId: string,
+  expiresAt: number,
+  secret: string
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const buf = await crypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(`${fileId}|${expiresAt}`)
+  );
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function verifyDownloadToken(
+  fileId: string,
+  expiresAt: number,
+  sig: string,
+  secret: string
+): Promise<boolean> {
+  const expected = await signDownloadToken(fileId, expiresAt, secret);
+  if (expected.length !== sig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // ─── Cursor helpers ───────────────────────────────────────────────────────────
 // Cursor encodes the last item's (createdAt ISO string + "|" + id) in base64url
 // so it is opaque to clients and can evolve without breaking old cursors.
@@ -141,6 +182,108 @@ fileRoutes.get('/files', requireAuth, async (c) => {
     count:      pageRows.length,
     hasMore,
   });
+});
+
+/**
+ * GET /files/*/url
+ *
+ * Issues a short-lived signed download URL for any authenticated user.
+ * The token is HMAC-SHA256 over `fileId|expiresAt` using JWT_SECRET, so no
+ * extra credentials or database writes are required.
+ *
+ * Query params:
+ *   ttl — token lifetime in seconds, 60–86400, default 900 (15 min)
+ *
+ * Response:
+ *   { signedUrl, expiresAt (ISO), expiresIn (seconds) }
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   404 — file not found in DB
+ *   503 — database not configured
+ */
+fileRoutes.get('/files/*/url', requireAuth, async (c) => {
+  const fileId = c.req.param('*');
+  if (!fileId) return c.json({ error: 'Missing file id' }, 400);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
+  if (!rows[0]) return c.json({ error: 'File not found' }, 404);
+
+  const ttlRaw = c.req.query('ttl');
+  const ttl    = ttlRaw
+    ? Math.min(Math.max(parseInt(ttlRaw, 10) || DEFAULT_TTL_SECONDS, 60), 86_400)
+    : DEFAULT_TTL_SECONDS;
+
+  const secret    = getEnv(c, 'JWT_SECRET', 'dev-secret');
+  const expiresAt = Math.floor(Date.now() / 1000) + ttl;
+  const sig       = await signDownloadToken(fileId, expiresAt, secret);
+
+  // Build the download URL relative to the gateway so it works in any environment.
+  const base       = new URL(c.req.url);
+  const signedUrl  = `${base.origin}/files/${fileId}/download?sig=${sig}&expires=${expiresAt}`;
+
+  return c.json({
+    signedUrl,
+    expiresAt: new Date(expiresAt * 1000).toISOString(),
+    expiresIn: ttl,
+  });
+});
+
+/**
+ * GET /files/*/download
+ *
+ * Token-gated download redirect. Verifies the HMAC signature and expiry issued
+ * by GET /files/:id/url, then 302-redirects to the file's actual public URL
+ * stored in the database (served directly from R2 — no bandwidth through
+ * the gateway).
+ *
+ * Query params:
+ *   sig     — HMAC-SHA256 base64url token
+ *   expires — unix timestamp (seconds)
+ *
+ * Errors:
+ *   400 — missing / malformed token params
+ *   401 — invalid signature or expired token
+ *   404 — file not found in DB
+ *   503 — database not configured
+ */
+fileRoutes.get('/files/*/download', async (c) => {
+  const fileId  = c.req.param('*');
+  const sig     = c.req.query('sig');
+  const expiresStr = c.req.query('expires');
+
+  if (!fileId || !sig || !expiresStr) {
+    return c.json({ error: 'Missing token parameters' }, 400);
+  }
+
+  const expiresAt = parseInt(expiresStr, 10);
+  if (isNaN(expiresAt)) return c.json({ error: 'Invalid expires value' }, 400);
+
+  // Check expiry before any crypto work
+  if (Math.floor(Date.now() / 1000) > expiresAt) {
+    return c.json({ error: 'Download token has expired' }, 401);
+  }
+
+  const secret = getEnv(c, 'JWT_SECRET', 'dev-secret');
+  const valid  = await verifyDownloadToken(fileId, expiresAt, sig, secret);
+  if (!valid) return c.json({ error: 'Invalid download token' }, 401);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
+  const file = rows[0] ?? null;
+
+  if (!file) return c.json({ error: 'File not found' }, 404);
+
+  // Redirect to the actual file URL — served directly from R2, zero
+  // gateway bandwidth. Swap for a streaming proxy if the bucket is private.
+  return c.redirect(file.url, 302);
 });
 
 /**
