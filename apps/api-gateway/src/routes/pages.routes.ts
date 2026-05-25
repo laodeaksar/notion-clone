@@ -12,9 +12,9 @@ const onInvalid = (result: any, c: any) => {
   }
 };
 
-export const pagesRoutes = new Hono<HonoEnv>();
+export const pageRoutes = new Hono<HonoEnv>();
 
-pagesRoutes.get('/pages', async (c) => {
+pageRoutes.get('/pages', async (c) => {
   const pageUrl  = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
   const parentId = c.req.query('parentId');
   const { data, status } = await proxyJson(pageUrl, '/pages', { query: { parentId } });
@@ -22,7 +22,7 @@ pagesRoutes.get('/pages', async (c) => {
 });
 
 // Auth check → body validation → handler (fail-fast, left-to-right)
-pagesRoutes.post(
+pageRoutes.post(
   '/pages',
   requireAuth,
   vValidator('json', PageBodySchema, onInvalid),
@@ -38,7 +38,7 @@ pagesRoutes.post(
   }
 );
 
-pagesRoutes.get('/pages/:id', async (c) => {
+pageRoutes.get('/pages/:id', async (c) => {
   const pageUrl  = getEnv(c, 'PAGE_SERVICE_URL',  'http://localhost:8082');
   const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
   const include  = c.req.query('include');
@@ -54,7 +54,7 @@ pagesRoutes.get('/pages/:id', async (c) => {
   return c.json(page, 200);
 });
 
-pagesRoutes.put(
+pageRoutes.put(
   '/pages/:id',
   requireAuth,
   vValidator('json', PageBodySchema, onInvalid),
@@ -70,7 +70,7 @@ pagesRoutes.put(
   }
 );
 
-pagesRoutes.delete('/pages/:id', requireAuth, async (c) => {
+pageRoutes.delete('/pages/:id', requireAuth, async (c) => {
   const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
   const { data, status } = await proxyJson(pageUrl, `/pages/${c.req.param('id')}`, {
     method: 'DELETE'
@@ -78,7 +78,7 @@ pagesRoutes.delete('/pages/:id', requireAuth, async (c) => {
   return c.json(data, status as any);
 });
 
-pagesRoutes.get('/pages/:id/blocks', async (c) => {
+pageRoutes.get('/pages/:id/blocks', async (c) => {
   const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
   const { data, status } = await proxyJson(blockUrl, '/blocks', {
     query: { pageId: c.req.param('id') }

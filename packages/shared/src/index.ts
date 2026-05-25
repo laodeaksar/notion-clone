@@ -1,5 +1,3 @@
-export type { UUID } from './types/legacy';
-
 export * from './types/block.types';
 export * from './types/page.types';
 export * from './types/auth.types';

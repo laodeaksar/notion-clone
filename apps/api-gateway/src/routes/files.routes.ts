@@ -11,9 +11,9 @@ const onInvalid = (result: any, c: any) => {
   }
 };
 
-export const filesRoutes = new Hono<HonoEnv>();
+export const fileRoutes = new Hono<HonoEnv>();
 
-filesRoutes.post(
+fileRoutes.post(
   '/upload',
   vValidator('json', UploadBodySchema, onInvalid),
   async (c) => {
