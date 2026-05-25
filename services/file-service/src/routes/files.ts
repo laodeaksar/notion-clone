@@ -31,6 +31,16 @@ export const fileRoutes = new Hono<ServiceEnv>()
   .use('*', authMiddleware)
   .use('*', serviceMiddleware)
 
+  .get('/quota', async (c) => {
+    const userId = c.get('userId');
+    try {
+      const result = await c.get('svc').getQuota(userId);
+      return c.json(result);
+    } catch (err: any) {
+      return c.json({ error: err.message ?? 'Quota fetch failed' }, 400);
+    }
+  })
+
   .get('/', async (c) => {
     const folder   = c.req.query('folder') ?? undefined;
     const cursor   = c.req.query('cursor') ?? undefined;
@@ -68,7 +78,8 @@ export const fileRoutes = new Hono<ServiceEnv>()
       const result = await c.get('svc').upload(parsed.output, uploadedBy);
       return c.json(result);
     } catch (err: any) {
-      return c.json({ error: err.message ?? 'Upload failed' }, 400);
+      const isQuota = err.message?.toLowerCase().includes('quota');
+      return c.json({ error: err.message ?? 'Upload failed' }, isQuota ? 413 : 400);
     }
   })
 
@@ -100,9 +111,10 @@ export const fileRoutes = new Hono<ServiceEnv>()
   })
 
   .delete('/:publicId{.+}', async (c) => {
-    const publicId = c.req.param('publicId');
+    const publicId  = c.req.param('publicId');
+    const deletedBy = c.get('userId');
     try {
-      const result = await c.get('svc').delete(publicId);
+      const result = await c.get('svc').delete(publicId, deletedBy);
       return c.json(result);
     } catch (err: any) {
       const isNotFound = err.message?.includes('not found');

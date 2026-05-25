@@ -3,6 +3,25 @@ info:
   title: File Service
   version: 0.3.0
 paths:
+  /upload/quota:
+    get:
+      summary: Get storage quota usage for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Quota information for the current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaResult'
+        '400':
+          description: Quota fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /upload:
     get:
       summary: List files in Cloudinary with optional folder filtering and cursor pagination
@@ -90,6 +109,12 @@ paths:
                 $ref: '#/components/schemas/UploadResult'
         '400':
           description: Upload failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Storage quota exceeded
           content:
             application/json:
               schema:
@@ -319,6 +344,23 @@ components:
           type: string
           nullable: true
           description: Pass this value as the `cursor` query param to fetch the next page
+
+    QuotaResult:
+      type: object
+      required: [userId, usedBytes, limitBytes, availableBytes]
+      properties:
+        userId:
+          type: string
+          description: ID of the authenticated user
+        usedBytes:
+          type: integer
+          description: Total bytes currently used by the user
+        limitBytes:
+          type: integer
+          description: Maximum bytes allowed for the user
+        availableBytes:
+          type: integer
+          description: Remaining bytes before the quota is reached
 
     Error:
       type: object

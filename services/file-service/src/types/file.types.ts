@@ -65,6 +65,13 @@ export type MoveResult = {
   provider:    'cloudinary';
 };
 
+export type QuotaResult = {
+  userId:         string;
+  usedBytes:      number;
+  limitBytes:     number;
+  availableBytes: number;
+};
+
 export type FileRecord = {
   id:          string;
   name:        string;

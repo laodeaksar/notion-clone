@@ -4,7 +4,8 @@ import {
   varchar,
   jsonb,
   timestamp,
-  integer
+  integer,
+  bigint
 } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
@@ -44,6 +45,14 @@ export const blocks = pgTable('blocks', {
   order:     integer('order').notNull(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull()
+});
+
+export const userStorageQuotas = pgTable('user_storage_quotas', {
+  userId:     varchar('user_id', { length: 36 }).primaryKey()
+                .references(() => users.id, { onDelete: 'cascade' }),
+  usedBytes:  bigint('used_bytes', { mode: 'number' }).notNull().default(0),
+  limitBytes: bigint('limit_bytes', { mode: 'number' }).notNull(),
+  updatedAt:  timestamp('updated_at').notNull()
 });
 
 export const files = pgTable('files', {
