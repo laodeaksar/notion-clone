@@ -8,7 +8,7 @@ const PORT          = Number(process.env.PORT) || 1234;
 const SECRET        = process.env.JWT_SECRET   ?? '';
 const AUTH_REQUIRED = process.env.AUTH_REQUIRED !== 'false';
 
-const server = Server.configure({
+const server = new Server({
   port: PORT,
   name: 'hocuspocus-service',
 

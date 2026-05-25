@@ -356,7 +356,7 @@ fileRoutes.get('/files/search', requireAuth, async (c) => {
 });
 
 /**
- * GET /files/*/url
+ * GET /files/:id/url  (wildcard route — matches any file id)
  *
  * Issues a short-lived signed download URL for any authenticated user.
  * The token is HMAC-SHA256 over `fileId|expiresAt` using JWT_SECRET, so no
@@ -405,7 +405,7 @@ fileRoutes.get('/files/*/url', requireAuth, async (c) => {
 });
 
 /**
- * GET /files/*/download
+ * GET /files/:id/download  (wildcard route — matches any file id)
  *
  * Token-gated download redirect. Verifies the HMAC signature and expiry issued
  * by GET /files/:id/url, then 302-redirects to the file's actual public URL

@@ -156,11 +156,13 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: services/file-service
           secrets: |
-            CLOUDINARY_API_KEY
-            CLOUDINARY_API_SECRET
+            R2_PUBLIC_URL
+            JWT_SECRET
+            DATABASE_URL
         env:
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   # ── 5. api-gateway ───────────────────────────────────────────────────────────
   #       Runs only after all 4 upstream services are deployed.
