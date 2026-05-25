@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { Editor } from '@tiptap/core';
+  import { Editor, Extension } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
   import Placeholder from '@tiptap/extension-placeholder';
   import Collaboration from '@tiptap/extension-collaboration';
@@ -12,26 +12,66 @@
   import { PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
 
   export let data: any;
+
   let editorContainer: HTMLDivElement | null = null;
-  let fileInput: HTMLInputElement | null = null;
-  let editor: Editor | null = null;
-  let provider: HocuspocusProvider | null = null;
+  let fileInput: HTMLInputElement | null     = null;
+  let editor: Editor | null                  = null;
+  let provider: HocuspocusProvider | null   = null;
+
   let showSlashMenu = false;
-  let activeIndex = 0;
-  let menuPosition = { top: 0, left: 0 };
+  let activeIndex   = 0;
+  let menuPosition  = { top: 0, left: 0 };
+
+  let cursorName:  string = 'Anonymous';
+  let cursorColor: string = '#7C3AED';
+  let editingName: boolean = false;
+  let nameInput:   string  = '';
+
+  const CURSOR_COLORS = [
+    '#7C3AED', '#2563EB', '#059669', '#D97706',
+    '#DC2626', '#DB2777', '#0891B2', '#65A30D'
+  ];
+
+  function loadOrCreateIdentity() {
+    if (typeof sessionStorage === 'undefined') return;
+    const stored = sessionStorage.getItem('editor-identity');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        cursorName  = parsed.name  ?? 'Anonymous';
+        cursorColor = parsed.color ?? '#7C3AED';
+        return;
+      } catch {}
+    }
+    const adjectives = ['Swift', 'Brave', 'Calm', 'Keen', 'Bold', 'Wise', 'Bright', 'Quick'];
+    const animals    = ['Fox', 'Owl', 'Bear', 'Wolf', 'Hawk', 'Lynx', 'Deer', 'Mole'];
+    cursorName  = `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
+    cursorColor = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)];
+    sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
+  }
+
+  function saveName() {
+    const trimmed = nameInput.trim();
+    if (trimmed) {
+      cursorName = trimmed;
+      sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
+      provider?.setAwarenessField('user', { name: cursorName, color: cursorColor });
+    }
+    editingName = false;
+  }
 
   const slashItems = [
-    { label: 'Heading 1', action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
-    { label: 'Heading 2', action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
-    { label: 'Bullet List', action: () => editor?.chain().focus().toggleBulletList().run() },
-    { label: 'Numbered List', action: () => editor?.chain().focus().toggleOrderedList().run() },
-    { label: 'Image', action: () => fileInput?.click() }
+    { icon: 'H1', label: 'Heading 1',     action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
+    { icon: 'H2', label: 'Heading 2',     action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
+    { icon: '•',  label: 'Bullet List',   action: () => editor?.chain().focus().toggleBulletList().run() },
+    { icon: '1.', label: 'Numbered List', action: () => editor?.chain().focus().toggleOrderedList().run() },
+    { icon: '🖼', label: 'Image',          action: () => fileInput?.click() }
   ];
 
   const toBase64 = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload  = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -41,10 +81,11 @@
     const { state } = editor;
     const from = state.selection.from;
     const charBefore = state.doc.textBetween(Math.max(0, from - 1), from, undefined, '\uFFFC');
+    const wasOpen = showSlashMenu;
     showSlashMenu = charBefore === '/';
+    if (!wasOpen && showSlashMenu) activeIndex = 0;
     if (showSlashMenu && editorContainer) {
-      const view = editor.view;
-      const coords = view.coordsAtPos(from);
+      const coords        = editor.view.coordsAtPos(from);
       const containerRect = editorContainer.getBoundingClientRect();
       menuPosition = {
         top:  coords.bottom - containerRect.top + 4,
@@ -65,15 +106,15 @@
 
   const handleFileChange = async (event: Event) => {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const file  = input.files?.[0];
     if (!file || !editor) return;
     const { default: imageCompression } = await import('browser-image-compression');
     const compressed = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true });
-    const base64 = await toBase64(compressed);
-    const response = await fetch('/api/upload', {
-      method: 'POST',
+    const base64      = await toBase64(compressed);
+    const response    = await fetch('/api/upload', {
+      method:  'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ data: base64 })
+      body:    JSON.stringify({ data: base64 })
     });
     if (!response.ok) return;
     const payload = await response.json();
@@ -82,6 +123,8 @@
   };
 
   onMount(() => {
+    loadOrCreateIdentity();
+
     const ydoc = new Y.Doc();
     provider = new HocuspocusProvider({
       url:      PUBLIC_HOCUSPOCUS_URL as any,
@@ -89,18 +132,48 @@
       name:     data.page?.id || 'page'
     });
 
+    const SlashMenuKeyboard = Extension.create({
+      name: 'slashMenuKeyboard',
+      addKeyboardShortcuts() {
+        return {
+          ArrowDown: () => {
+            if (!showSlashMenu) return false;
+            activeIndex = (activeIndex + 1) % slashItems.length;
+            return true;
+          },
+          ArrowUp: () => {
+            if (!showSlashMenu) return false;
+            activeIndex = (activeIndex - 1 + slashItems.length) % slashItems.length;
+            return true;
+          },
+          Enter: () => {
+            if (!showSlashMenu) return false;
+            insertSlashCommand(slashItems[activeIndex]);
+            return true;
+          },
+          Escape: () => {
+            if (!showSlashMenu) return false;
+            showSlashMenu = false;
+            activeIndex   = 0;
+            return true;
+          }
+        };
+      }
+    });
+
     editor = new Editor({
       element:    editorContainer as HTMLElement,
       extensions: [
-        StarterKit.configure({ history: false }),
+        StarterKit.configure({ history: false, link: false }),
         Placeholder.configure({ placeholder: 'Start writing...' }),
         Link,
         Image,
         Collaboration.configure({ document: ydoc.get('prosemirror', Y.XmlFragment) }),
         CollaborationCursor.configure({
           provider,
-          user: { name: data.page?.title || 'Anonymous', color: '#7C3AED' }
-        })
+          user: { name: cursorName, color: cursorColor }
+        }),
+        SlashMenuKeyboard
       ],
       onUpdate:          updateSlashMenu,
       onSelectionUpdate: updateSlashMenu
@@ -114,22 +187,77 @@
 </script>
 
 <div class="relative rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-  <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
-  <input type="file" accept="image/*" bind:this={fileInput} class="hidden" on:change={handleFileChange} />
-  {#if showSlashMenu}
-    <div
-      class="absolute z-20 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
-      style="top: {menuPosition.top}px; left: {menuPosition.left}px;"
-    >
-      {#each slashItems as item, index}
+
+  <!-- Identity bar -->
+  <div class="mb-4 flex items-center gap-2">
+    <span
+      class="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+      style="background:{cursorColor}"
+    ></span>
+    {#if editingName}
+      <form
+        class="flex items-center gap-1.5"
+        on:submit|preventDefault={saveName}
+      >
+        <input
+          type="text"
+          bind:value={nameInput}
+          maxlength={32}
+          placeholder="Your display name"
+          autofocus
+          class="rounded-lg border border-slate-300 px-2 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300"
+        />
+        <button
+          type="submit"
+          class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors"
+        >Save</button>
         <button
           type="button"
-          class="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 {activeIndex === index ? 'bg-slate-100' : ''}"
-          on:click={() => insertSlashCommand(item)}
-        >
-          {item.label}
-        </button>
-      {/each}
+          class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors"
+          on:click={() => { editingName = false; }}
+        >Cancel</button>
+      </form>
+    {:else}
+      <span class="text-xs text-slate-500">
+        You are <strong class="font-semibold text-slate-700">{cursorName}</strong>
+      </span>
+      <button
+        type="button"
+        class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+        on:click={() => { nameInput = cursorName; editingName = true; }}
+      >Change</button>
+    {/if}
+  </div>
+
+  <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
+
+  <input type="file" accept="image/*" bind:this={fileInput} class="hidden" on:change={handleFileChange} />
+
+  {#if showSlashMenu}
+    <div
+      class="absolute z-20 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+      style="top: {menuPosition.top}px; left: {menuPosition.left}px;"
+    >
+      <div class="px-2 pt-2 pb-1">
+        <p class="px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Insert block</p>
+      </div>
+      <div class="p-1.5 pt-0">
+        {#each slashItems as item, index}
+          <button
+            type="button"
+            class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition-colors
+              {activeIndex === index ? 'bg-violet-50 text-violet-700' : 'hover:bg-slate-50'}"
+            on:click={() => insertSlashCommand(item)}
+            on:mouseenter={() => { activeIndex = index; }}
+          >
+            <span class="w-5 text-center font-mono text-xs text-slate-400">{item.icon}</span>
+            {item.label}
+          </button>
+        {/each}
+      </div>
+      <div class="border-t border-slate-100 px-3 py-1.5">
+        <p class="text-[10px] text-slate-300">↑↓ navigate · Enter select · Esc close</p>
+      </div>
     </div>
   {/if}
 </div>
