@@ -1,3 +1,5 @@
+import type { AppEvent } from './events';
+
 // ─── Cloudflare Queues types ──────────────────────────────────────────────────
 // Minimal interfaces that mirror the CF Queues runtime API.
 // Defined here to avoid a hard @cloudflare/workers-types dependency in every
