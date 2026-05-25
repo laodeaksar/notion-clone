@@ -10,11 +10,7 @@ export const fileRoutes = new Hono<HonoEnv>()
   .use('*', authMiddleware)
 
   .post('/', vValidator('json', UploadInputSchema), async (c) => {
-    const svc = createFileService({
-      cloudName: c.env.CLOUDINARY_CLOUD_NAME,
-      apiKey: c.env.CLOUDINARY_API_KEY,
-      apiSecret: c.env.CLOUDINARY_API_SECRET
-    });
+    const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
     try {
       const result = await svc.upload(c.req.valid('json'));
       return c.json(result);

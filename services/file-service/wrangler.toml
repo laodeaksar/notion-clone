@@ -3,8 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "notion-clone-files"
+
 # Secrets — set before deploying:
-#   wrangler secret put CLOUDINARY_CLOUD_NAME
-#   wrangler secret put CLOUDINARY_API_KEY
-#   wrangler secret put CLOUDINARY_API_SECRET
+#   wrangler secret put R2_PUBLIC_URL
 #   wrangler secret put JWT_SECRET
+#
+# For local dev, add to .dev.vars:
+#   R2_PUBLIC_URL=https://pub-<hash>.r2.dev
+#   JWT_SECRET=your-secret

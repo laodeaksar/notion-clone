@@ -11,7 +11,7 @@ export type UploadInput = z.infer<typeof UploadInputSchema>;
 export type UploadResult = {
   url: string;
   publicId: string;
-  provider: 'cloudinary' | 'local';
+  provider: 'r2';
 };
 
 export interface StorageProvider {

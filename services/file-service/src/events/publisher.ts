@@ -1,6 +1,6 @@
 export type FileEvent = {
   type: 'file.uploaded';
-  payload: { publicId: string; url: string; provider: 'cloudinary' | 'local' };
+  payload: { publicId: string; url: string; provider: 'r2' };
 };
 
 /**

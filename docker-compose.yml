@@ -67,7 +67,7 @@ services:
     build:
       context: ./services/file-service
     environment:
-      CLOUDINARY_URL: ${CLOUDINARY_URL}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
       PORT: 8084
     ports:
       - '8084:8084'

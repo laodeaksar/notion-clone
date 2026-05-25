@@ -47,7 +47,7 @@ export type PageEvent =
 export const FileUploadedPayloadSchema = z.object({
   publicId: z.string(),
   url: z.string(),
-  provider: z.enum(['cloudinary', 'local'])
+  provider: z.enum(['r2'])
 });
 
 export type FileEvent = {

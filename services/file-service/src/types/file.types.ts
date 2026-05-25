@@ -11,15 +11,9 @@ export type UploadInput = v.InferInput<typeof UploadInputSchema>;
 export type UploadResult = {
   url: string;
   publicId: string;
-  provider: 'cloudinary';
+  provider: 'r2';
 };
 
 export interface StorageProvider {
-  upload(input: UploadInput, config: CloudinaryConfig, folder: string): Promise<UploadResult>;
+  upload(input: UploadInput, bucket: R2Bucket, publicUrl: string, folder: string): Promise<UploadResult>;
 }
-
-export type CloudinaryConfig = {
-  cloudName: string;
-  apiKey: string;
-  apiSecret: string;
-};

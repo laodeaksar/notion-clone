@@ -17,7 +17,7 @@ Ada **dua cara** deploy — pilih salah satu:
 1. Repo ini sudah di-push ke GitHub
 2. Akun Cloudflare (gratis): [dash.cloudflare.com](https://dash.cloudflare.com)
 3. Database Neon: [neon.tech](https://neon.tech) — untuk auth/page/block service
-4. Akun Cloudinary: [cloudinary.com](https://cloudinary.com) — untuk file service
+4. Cloudflare R2 bucket — untuk file service (buat di Cloudflare dashboard → R2)
 
 ---
 
@@ -58,8 +58,7 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `DATABASE_URL` | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` |
 | `JWT_SECRET` | String acak panjang (min 32 karakter) |
 | `JWT_REFRESH_SECRET` | String acak panjang **berbeda** dari JWT_SECRET |
-| `CLOUDINARY_API_KEY` | Dari Cloudinary dashboard |
-| `CLOUDINARY_API_SECRET` | Dari Cloudinary dashboard |
+| `R2_PUBLIC_URL` | URL publik bucket R2 (mis. `https://pub-xxx.r2.dev`) |
 
 #### Tab "Variables" — tambahkan (bukan secret, nilai boleh dilihat):
 

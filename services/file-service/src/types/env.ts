@@ -1,7 +1,6 @@
 export type Bindings = {
-  CLOUDINARY_CLOUD_NAME: string;
-  CLOUDINARY_API_KEY: string;
-  CLOUDINARY_API_SECRET: string;
+  R2_BUCKET: R2Bucket;
+  R2_PUBLIC_URL: string;
   JWT_SECRET: string;
 };
 
