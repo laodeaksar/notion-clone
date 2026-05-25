@@ -3,13 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# ── R2 Bucket ─────────────────────────────────────────────────────────────────
-[[r2_buckets]]
-binding     = "R2_BUCKET"
-bucket_name = "notion-clone-files"
-
 # ── Cloudflare Queue ───────────────────────────────────────────────────────────
-# Before deploying, create the queue:
+# Before deploying, create the queues:
 #   wrangler queues create file-events
 #   wrangler queues create file-events-dlq   # dead-letter queue
 #
@@ -24,8 +19,15 @@ max_batch_timeout = 5
 max_retries       = 3
 dead_letter_queue = "file-events-dlq"
 
+# ── Vars (non-sensitive) ───────────────────────────────────────────────────────
+# Set your Cloudinary cloud name here (not sensitive — appears in public URLs).
+# [vars]
+# CLOUDINARY_CLOUD_NAME = "your-cloud-name"
+
 # ── Secrets ────────────────────────────────────────────────────────────────────
 # Set before deploying:
-#   wrangler secret put R2_PUBLIC_URL
+#   wrangler secret put CLOUDINARY_CLOUD_NAME
+#   wrangler secret put CLOUDINARY_API_KEY
+#   wrangler secret put CLOUDINARY_API_SECRET
 #   wrangler secret put JWT_SECRET
 #   wrangler secret put DATABASE_URL

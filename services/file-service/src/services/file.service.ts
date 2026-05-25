@@ -1,25 +1,43 @@
 import * as v from 'valibot';
 import { UploadInputSchema } from '../types/file.types';
-import { uploadToR2, uploadFileToR2, deleteFromR2, listFromR2, headFromR2, moveInR2 } from '../storage/r2.storage';
+import {
+  uploadToCloudinary,
+  uploadFileToCloudinary,
+  deleteFromCloudinary,
+  listFromCloudinary,
+  headFromCloudinary,
+  moveInCloudinary
+} from '../storage/cloudinary.storage';
 import { createFileRepo } from '../repository/file.repo';
 import { createFilePublisher } from '../events/publisher';
 import { DEFAULT_UPLOAD_FOLDER } from '../config';
 import type { CfQueue } from '@workspace/shared';
 import type { FileEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
-import type { UploadResult, DeleteResult, ListResult, FileMetadata, MoveInput, MoveResult } from '../types/file.types';
+import type {
+  UploadResult,
+  DeleteResult,
+  ListResult,
+  FileMetadata,
+  MoveInput,
+  MoveResult
+} from '../types/file.types';
 
 export function createFileService(
-  bucket: R2Bucket,
-  publicUrl: string,
+  cloudName: string,
+  apiKey: string,
+  apiSecret: string,
   db?: Db | null,
   eventsQueue?: CfQueue<FileEvent> | null
 ) {
   const publisher = createFilePublisher(eventsQueue);
 
   return {
-    async upload(input: v.InferInput<typeof UploadInputSchema>, uploadedBy?: string): Promise<UploadResult> {
-      const result = await uploadToR2(input, bucket, publicUrl, DEFAULT_UPLOAD_FOLDER);
+    async upload(
+      input: v.InferInput<typeof UploadInputSchema>,
+      uploadedBy?: string
+    ): Promise<UploadResult> {
+      const result = await uploadToCloudinary(input, cloudName, apiKey, apiSecret, DEFAULT_UPLOAD_FOLDER);
       if (db) {
         const repo = createFileRepo(db);
         await repo.create({
@@ -35,14 +53,21 @@ export function createFileService(
         }).catch((err) => console.error('[file-service] DB insert failed:', err));
       }
       await publisher.publish({
-        type: 'file.uploaded',
+        type:    'file.uploaded',
         payload: { publicId: result.publicId, url: result.url, provider: result.provider }
       });
       return result;
     },
 
-    async uploadFile(file: File, folder?: string, filename?: string, uploadedBy?: string): Promise<UploadResult> {
-      const result = await uploadFileToR2(file, bucket, publicUrl, DEFAULT_UPLOAD_FOLDER, folder, filename);
+    async uploadFile(
+      file: File,
+      folder?: string,
+      filename?: string,
+      uploadedBy?: string
+    ): Promise<UploadResult> {
+      const result = await uploadFileToCloudinary(
+        file, cloudName, apiKey, apiSecret, DEFAULT_UPLOAD_FOLDER, folder, filename
+      );
       if (db) {
         const repo = createFileRepo(db);
         await repo.create({
@@ -58,33 +83,39 @@ export function createFileService(
         }).catch((err) => console.error('[file-service] DB insert failed:', err));
       }
       await publisher.publish({
-        type: 'file.uploaded',
+        type:    'file.uploaded',
         payload: { publicId: result.publicId, url: result.url, provider: result.provider }
       });
       return result;
     },
 
     async delete(publicId: string): Promise<DeleteResult> {
-      await deleteFromR2(publicId, bucket);
+      let contentType: string | null = null;
+      if (db) {
+        const repo   = createFileRepo(db);
+        const record = await repo.findById(publicId).catch(() => null);
+        contentType  = record?.contentType ?? null;
+      }
+      await deleteFromCloudinary(publicId, cloudName, apiKey, apiSecret, contentType);
       if (db) {
         const repo = createFileRepo(db);
         await repo.delete(publicId)
           .catch((err) => console.error('[file-service] DB delete failed:', err));
       }
       await publisher.publish({
-        type: 'file.deleted',
+        type:    'file.deleted',
         payload: { publicId }
       });
       return { publicId, deleted: true };
     },
 
     async list(folder?: string, cursor?: string, limit?: number): Promise<ListResult> {
-      const result = await listFromR2(bucket, publicUrl, folder, cursor, limit);
+      const result = await listFromCloudinary(cloudName, apiKey, apiSecret, folder, cursor, limit);
       return { ...result, folder: folder ?? null };
     },
 
     async head(publicId: string): Promise<FileMetadata> {
-      return headFromR2(publicId, bucket, publicUrl);
+      return headFromCloudinary(publicId, cloudName, apiKey, apiSecret);
     },
 
     async move(oldPublicId: string, input: MoveInput): Promise<MoveResult> {
@@ -99,14 +130,24 @@ export function createFileService(
         const resolvedFilename = input.filename ?? currentFilename;
         newPublicId = `${resolvedFolder}/${resolvedFilename}`;
       }
-      const result = await moveInR2(oldPublicId, newPublicId, bucket, publicUrl);
+
+      let contentType: string | null = null;
+      if (db) {
+        const repo   = createFileRepo(db);
+        const record = await repo.findById(oldPublicId).catch(() => null);
+        contentType  = record?.contentType ?? null;
+      }
+
+      const result = await moveInCloudinary(
+        oldPublicId, newPublicId, cloudName, apiKey, apiSecret, contentType
+      );
       if (db) {
         const repo = createFileRepo(db);
         await repo.move(oldPublicId, result.publicId, result.url)
           .catch((err) => console.error('[file-service] DB move failed:', err));
       }
       await publisher.publish({
-        type: 'file.moved',
+        type:    'file.moved',
         payload: { oldPublicId: result.oldPublicId, publicId: result.publicId, url: result.url }
       });
       return result;

@@ -47,7 +47,7 @@ export type PageEvent =
 export const FileUploadedPayloadSchema = v.object({
   publicId: v.string(),
   url:      v.string(),
-  provider: v.picklist(['r2'])
+  provider: v.picklist(['cloudinary', 'r2'])
 });
 
 export const FileDeletedPayloadSchema = v.object({

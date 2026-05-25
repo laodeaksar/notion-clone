@@ -3,5 +3,5 @@ import { fileRoutes } from './files';
 import type { HonoEnv } from '../types/env';
 
 export const routes = new Hono<HonoEnv>()
-  .get('/', (c) => c.json({ status: 'ok', service: 'file-service', provider: 'r2' }))
+  .get('/', (c) => c.json({ status: 'ok', service: 'file-service', provider: 'cloudinary' }))
   .route('/upload', fileRoutes);

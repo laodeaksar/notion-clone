@@ -11,7 +11,7 @@ export type UploadInput = v.InferInput<typeof UploadInputSchema>;
 export type UploadResult = {
   url:         string;
   publicId:    string;
-  provider:    'r2';
+  provider:    'cloudinary';
   size:        number;
   name:        string;
   contentType: string;
@@ -62,7 +62,7 @@ export type MoveResult = {
   oldPublicId: string;
   publicId:    string;
   url:         string;
-  provider:    'r2';
+  provider:    'cloudinary';
 };
 
 export type FileRecord = {
@@ -80,8 +80,8 @@ export type FileRecord = {
 };
 
 export interface StorageProvider {
-  upload(input: UploadInput, bucket: R2Bucket, publicUrl: string, folder: string): Promise<UploadResult>;
-  delete(publicId: string, bucket: R2Bucket): Promise<DeleteResult>;
-  list(bucket: R2Bucket, publicUrl: string, folder?: string, cursor?: string, limit?: number): Promise<ListResult>;
-  move(oldPublicId: string, input: MoveInput, bucket: R2Bucket, publicUrl: string): Promise<MoveResult>;
+  upload(input: UploadInput, cloudName: string, apiKey: string, apiSecret: string, folder: string): Promise<UploadResult>;
+  delete(publicId: string, cloudName: string, apiKey: string, apiSecret: string, contentType?: string | null): Promise<DeleteResult>;
+  list(cloudName: string, apiKey: string, apiSecret: string, folder?: string, cursor?: string, limit?: number): Promise<ListResult>;
+  move(oldPublicId: string, input: MoveInput, cloudName: string, apiKey: string, apiSecret: string, contentType?: string | null): Promise<MoveResult>;
 }
