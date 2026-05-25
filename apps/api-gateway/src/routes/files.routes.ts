@@ -1,11 +1,27 @@
 import { Hono } from 'hono';
 import { vValidator } from '@hono/valibot-validator';
+import * as v from 'valibot';
 import type { HonoEnv } from '../types/gateway.types';
 import { UploadBodySchema } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
 import { createDb, files, eq, and, lt, or, asc, desc } from '@workspace/db';
+
+// ─── Patch schema ─────────────────────────────────────────────────────────────
+// All fields are optional; at least one must be provided.
+
+const FilePatchSchema = v.pipe(
+  v.object({
+    name:   v.optional(v.pipe(v.string(), v.minLength(1))),
+    folder: v.optional(v.nullable(v.string())),
+    pageId: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),
+  }),
+  v.check(
+    (obj) => Object.keys(obj).length > 0,
+    'At least one field (name, folder, pageId) must be provided'
+  )
+);
 
 // ─── Cursor helpers ───────────────────────────────────────────────────────────
 // Cursor encodes the last item's (createdAt ISO string + "|" + id) in base64url
@@ -181,6 +197,72 @@ fileRoutes.delete('/files/*', requireAuth, async (c) => {
   );
 
   return c.json(data, status as any);
+});
+
+/**
+ * PATCH /files/*
+ *
+ * Updates mutable file metadata (name, folder, pageId) directly in the DB.
+ * Useful for associating a file with a page after it has been uploaded, or
+ * renaming/reorganising files without touching R2.
+ *
+ * Body (at least one field required):
+ *   { name?: string, folder?: string | null, pageId?: string | null }
+ *
+ * Errors:
+ *   400 — invalid/empty body
+ *   401 — not authenticated
+ *   403 — authenticated but not the file owner
+ *   404 — file not found in DB
+ *   503 — database not configured
+ */
+fileRoutes.patch('/files/*', requireAuth, async (c) => {
+  const fileId = c.req.param('*');
+  if (!fileId) return c.json({ error: 'Missing file id' }, 400);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  // ── 1. Validate body ──────────────────────────────────────────────────────
+  const body   = await c.req.json().catch(() => null);
+  const parsed = v.safeParse(FilePatchSchema, body);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
+  }
+
+  // ── 2. Ownership check ────────────────────────────────────────────────────
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
+  const file = rows[0] ?? null;
+
+  if (!file) return c.json({ error: 'File not found' }, 404);
+
+  const requesterId = (c.var.jwtPayload as Record<string, unknown>).sub as string | undefined;
+  if (file.uploadedBy && file.uploadedBy !== requesterId) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  // ── 3. Apply patch ────────────────────────────────────────────────────────
+  // Build a typed patch object from only the fields the caller sent.
+  type FilePatch = {
+    updatedAt: Date;
+    name?:   string;
+    folder?: string | null;
+    pageId?: string | null;
+  };
+
+  const patch: FilePatch = { updatedAt: new Date() };
+  if ('name'   in parsed.output) patch.name   = parsed.output.name;
+  if ('folder' in parsed.output) patch.folder = parsed.output.folder;
+  if ('pageId' in parsed.output) patch.pageId = parsed.output.pageId;
+
+  const [updated] = await db
+    .update(files)
+    .set(patch)
+    .where(eq(files.id, fileId))
+    .returning();
+
+  return c.json(updated ?? file);
 });
 
 /**
