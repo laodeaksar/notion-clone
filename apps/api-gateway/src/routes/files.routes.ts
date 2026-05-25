@@ -6,7 +6,7 @@ import { UploadBodySchema } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
-import { createDb, files, eq, and, lt, or, asc, desc, ilike, inArray } from '@workspace/db';
+import { createDb, files, eq, and, lt, or, asc, desc, ilike, inArray, count, sum } from '@workspace/db';
 
 // ─── Bulk-delete schema ───────────────────────────────────────────────────────
 

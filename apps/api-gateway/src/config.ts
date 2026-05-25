@@ -13,7 +13,7 @@ export const METRICS_SKIP = new Set([
 
 export function getEnv(
   c: { env?: Partial<Bindings> },
-  key: Exclude<keyof Bindings, 'RATE_LIMIT_KV'>,
+  key: keyof Pick<Bindings, 'JWT_SECRET' | 'DATABASE_URL' | 'PAGE_SERVICE_URL' | 'AUTH_SERVICE_URL' | 'BLOCK_SERVICE_URL' | 'FILE_SERVICE_URL'>,
   fallback: string
 ): string {
   const fromBinding = c.env?.[key];
