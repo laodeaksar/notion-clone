@@ -45,3 +45,20 @@ export const blocks = pgTable('blocks', {
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull()
 });
+
+export const files = pgTable('files', {
+  id:          varchar('id', { length: 500 }).primaryKey(), // R2 object key (e.g. "uploads/uuid.png")
+  name:        varchar('name', { length: 255 }).notNull(),  // original filename
+  url:         text('url').notNull(),                       // full public URL
+  size:        integer('size').notNull(),                   // bytes
+  contentType: varchar('content_type', { length: 127 }),    // MIME type
+  folder:      varchar('folder', { length: 255 }),          // folder prefix
+  provider:    varchar('provider', { length: 50 }).notNull().default('r2'),
+  // nullable FKs — file record survives if uploader or page is deleted
+  uploadedBy:  varchar('uploaded_by', { length: 36 })
+                 .references(() => users.id, { onDelete: 'set null' }),
+  pageId:      varchar('page_id', { length: 36 })
+                 .references(() => pages.id, { onDelete: 'set null' }),
+  createdAt:   timestamp('created_at').notNull(),
+  updatedAt:   timestamp('updated_at').notNull()
+});

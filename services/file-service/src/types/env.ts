@@ -1,7 +1,8 @@
 export type Bindings = {
-  R2_BUCKET: R2Bucket;
+  R2_BUCKET:    R2Bucket;
   R2_PUBLIC_URL: string;
-  JWT_SECRET: string;
+  JWT_SECRET:   string;
+  DATABASE_URL: string;
 };
 
 export type Variables = {

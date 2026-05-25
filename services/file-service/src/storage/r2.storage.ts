@@ -15,6 +15,14 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+function detectContentType(data: string): string {
+  if (data.startsWith('data:')) {
+    const match = data.match(/^data:([^;]+);/);
+    if (match) return match[1];
+  }
+  return 'application/octet-stream';
+}
+
 export async function uploadToR2(
   input: UploadInput,
   bucket: R2Bucket,
@@ -24,13 +32,21 @@ export async function uploadToR2(
   const folder = input.folder ?? defaultFolder;
   const key = generateKey(folder, input.filename);
   const buffer = base64ToArrayBuffer(input.data);
+  const contentType = detectContentType(input.data);
 
   await bucket.put(key, buffer, {
-    httpMetadata: { contentType: detectContentType(input.data) }
+    httpMetadata: { contentType }
   });
 
   const url = `${publicUrl.replace(/\/$/, '')}/${key}`;
-  return { url, publicId: key, provider: 'r2' };
+  return {
+    url,
+    publicId:    key,
+    provider:    'r2',
+    size:        buffer.byteLength,
+    name:        input.filename ?? key.split('/').pop() ?? key,
+    contentType
+  };
 }
 
 export async function uploadFileToR2(
@@ -42,15 +58,23 @@ export async function uploadFileToR2(
   filename?: string
 ): Promise<UploadResult> {
   const resolvedFolder = folder ?? defaultFolder;
-  const resolvedName = filename ?? file.name ?? crypto.randomUUID();
-  const key = generateKey(resolvedFolder, resolvedName);
+  const resolvedName   = filename ?? file.name ?? crypto.randomUUID();
+  const key            = generateKey(resolvedFolder, resolvedName);
+  const contentType    = file.type || 'application/octet-stream';
 
   await bucket.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type || 'application/octet-stream' }
+    httpMetadata: { contentType }
   });
 
   const url = `${publicUrl.replace(/\/$/, '')}/${key}`;
-  return { url, publicId: key, provider: 'r2' };
+  return {
+    url,
+    publicId:    key,
+    provider:    'r2',
+    size:        file.size,
+    name:        resolvedName,
+    contentType
+  };
 }
 
 export async function headFromR2(
@@ -64,10 +88,10 @@ export async function headFromR2(
   }
   const base = publicUrl.replace(/\/$/, '');
   return {
-    publicId: obj.key,
-    url: `${base}/${obj.key}`,
-    size: obj.size,
-    uploadedAt: obj.uploaded.toISOString(),
+    publicId:    obj.key,
+    url:         `${base}/${obj.key}`,
+    size:        obj.size,
+    uploadedAt:  obj.uploaded.toISOString(),
     contentType: obj.httpMetadata?.contentType ?? null
   };
 }
@@ -87,16 +111,16 @@ export async function listFromR2(
   const listed = await bucket.list(opts);
 
   const items = listed.objects.map((obj) => ({
-    publicId: obj.key,
-    url: `${base}/${obj.key}`,
-    size: obj.size,
+    publicId:   obj.key,
+    url:        `${base}/${obj.key}`,
+    size:       obj.size,
     uploadedAt: obj.uploaded.toISOString()
   }));
 
   return {
     items,
     truncated: listed.truncated,
-    cursor: listed.truncated ? (listed as any).cursor ?? null : null
+    cursor:    listed.truncated ? (listed as any).cursor ?? null : null
   };
 }
 
@@ -129,12 +153,4 @@ export async function deleteFromR2(publicId: string, bucket: R2Bucket): Promise<
     throw new Error(`Object not found: ${publicId}`);
   }
   await bucket.delete(publicId);
-}
-
-function detectContentType(data: string): string {
-  if (data.startsWith('data:')) {
-    const match = data.match(/^data:([^;]+);/);
-    if (match) return match[1];
-  }
-  return 'application/octet-stream';
 }
