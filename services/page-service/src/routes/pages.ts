@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { vValidator } from '@hono/valibot-validator';
 import { PageInputSchema, PageUpdateSchema } from '../types/page.types';
 import { createPageService } from '../services/page.service';
-import { createDb } from '../config';
+import { createDb } from '@workspace/db';
 import { authMiddleware } from '../middleware/auth';
 import type { HonoEnv } from '../types/env';
 

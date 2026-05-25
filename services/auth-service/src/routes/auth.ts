@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { vValidator } from '@hono/valibot-validator';
 import { RegisterSchema, LoginSchema } from '../types/auth.types';
 import { createAuthService } from '../services/auth.service';
-import { createDb } from '../config';
+import { createDb } from '@workspace/db';
 import type { HonoEnv } from '../types/env';
 
 export const authRoutes = new Hono<HonoEnv>()

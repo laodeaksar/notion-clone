@@ -1,6 +1,6 @@
-import { eq, asc } from 'drizzle-orm';
-import { blocks } from '@workspace/db/src/schema';
-import type { Db } from '../config';
+import { eq, asc } from '@workspace/db';
+import { blocks } from '@workspace/db';
+import type { Db } from '@workspace/db';
 import type { BlockInput, BlockUpdate, Block } from '../types/block.types';
 
 export function createBlockRepo(db: Db) {

@@ -2,7 +2,7 @@ import * as v from 'valibot';
 import { PageInputSchema, PageUpdateSchema } from '../types/page.types';
 import { createPageRepo } from '../repository/page.repo';
 import { publisher } from '../events/publisher';
-import type { Db } from '../config';
+import type { Db } from '@workspace/db';
 import type { Page } from '../types/page.types';
 
 export function createPageService(db: Db) {

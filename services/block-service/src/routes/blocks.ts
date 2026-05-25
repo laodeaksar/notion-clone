@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { vValidator } from '@hono/valibot-validator';
 import { BlockInputSchema, BlockUpdateSchema } from '../types/block.types';
 import { createBlockService } from '../services/block.service';
-import { createDb } from '../config';
+import { createDb } from '@workspace/db';
 import { authMiddleware } from '../middleware/auth';
 import type { HonoEnv } from '../types/env';
 

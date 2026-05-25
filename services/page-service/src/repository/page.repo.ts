@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
-import { pages } from '@workspace/db/src/schema';
-import type { Db } from '../config';
+import { eq } from '@workspace/db';
+import { pages } from '@workspace/db';
+import type { Db } from '@workspace/db';
 import type { PageInput, PageUpdate, Page } from '../types/page.types';
 
 export function createPageRepo(db: Db) {

@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
-import { users } from '@workspace/db/src/schema';
-import type { Db } from '../config';
+import { eq } from '@workspace/db';
+import { users } from '@workspace/db';
+import type { Db } from '@workspace/db';
 import type { RegisterInput, User } from '../types/auth.types';
 
 export function createUserRepo(db: Db) {

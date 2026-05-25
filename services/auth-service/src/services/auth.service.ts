@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { RegisterSchema, LoginSchema } from '../types/auth.types';
 import { createUserRepo } from '../repository/user.repo';
-import type { Db } from '../config';
+import type { Db } from '@workspace/db';
 import type { PublicUser } from '../types/auth.types';
 
 /** SHA-256 password hash using Web Crypto API (CF Workers compatible) */

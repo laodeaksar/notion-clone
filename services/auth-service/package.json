@@ -4,15 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 8083",
+    "dev":    "wrangler dev --port 8083",
     "deploy": "wrangler deploy",
-    "build": "tsc --noEmit"
+    "build":  "tsc --noEmit"
   },
   "dependencies": {
     "@hono/valibot-validator": "^0.6.1",
-    "@neondatabase/serverless": "^0.10.4",
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.22",
     "valibot": "^1.4.0"
   },
