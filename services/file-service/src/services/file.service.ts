@@ -2,12 +2,21 @@ import * as v from 'valibot';
 import { UploadInputSchema } from '../types/file.types';
 import { uploadToR2, uploadFileToR2, deleteFromR2, listFromR2, headFromR2, moveInR2 } from '../storage/r2.storage';
 import { createFileRepo } from '../repository/file.repo';
-import { publisher } from '../events/publisher';
+import { createFilePublisher } from '../events/publisher';
 import { DEFAULT_UPLOAD_FOLDER } from '../config';
+import type { CfQueue } from '@workspace/shared';
+import type { FileEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
 import type { UploadResult, DeleteResult, ListResult, FileMetadata, MoveInput, MoveResult } from '../types/file.types';
 
-export function createFileService(bucket: R2Bucket, publicUrl: string, db?: Db | null) {
+export function createFileService(
+  bucket: R2Bucket,
+  publicUrl: string,
+  db?: Db | null,
+  eventsQueue?: CfQueue<FileEvent> | null
+) {
+  const publisher = createFilePublisher(eventsQueue);
+
   return {
     async upload(input: v.InferInput<typeof UploadInputSchema>, uploadedBy?: string): Promise<UploadResult> {
       const result = await uploadToR2(input, bucket, publicUrl, DEFAULT_UPLOAD_FOLDER);
@@ -83,10 +92,10 @@ export function createFileService(bucket: R2Bucket, publicUrl: string, db?: Db |
       if (input.newKey) {
         newPublicId = input.newKey;
       } else {
-        const parts          = oldPublicId.split('/');
-        const currentFolder  = parts.slice(0, -1).join('/');
+        const parts           = oldPublicId.split('/');
+        const currentFolder   = parts.slice(0, -1).join('/');
         const currentFilename = parts[parts.length - 1];
-        const resolvedFolder  = input.folder   ?? currentFolder;
+        const resolvedFolder   = input.folder   ?? currentFolder;
         const resolvedFilename = input.filename ?? currentFilename;
         newPublicId = `${resolvedFolder}/${resolvedFilename}`;
       }

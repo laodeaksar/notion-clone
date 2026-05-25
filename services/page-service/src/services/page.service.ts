@@ -1,12 +1,15 @@
 import * as v from 'valibot';
 import { PageInputSchema, PageUpdateSchema } from '../types/page.types';
 import { createPageRepo } from '../repository/page.repo';
-import { publisher } from '../events/publisher';
+import { createPagePublisher } from '../events/publisher';
+import type { CfQueue } from '@workspace/shared';
+import type { PageEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
 import type { Page } from '../types/page.types';
 
-export function createPageService(db: Db) {
-  const pageRepo = createPageRepo(db);
+export function createPageService(db: Db, eventsQueue?: CfQueue<PageEvent> | null) {
+  const pageRepo  = createPageRepo(db);
+  const publisher = createPagePublisher(eventsQueue);
 
   return {
     async getPages(parentId?: string): Promise<Page[]> {

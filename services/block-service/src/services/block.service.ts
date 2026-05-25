@@ -1,12 +1,15 @@
 import * as v from 'valibot';
 import { BlockInputSchema, BlockUpdateSchema } from '../types/block.types';
 import { createBlockRepo } from '../repository/block.repo';
-import { publisher } from '../events/publisher';
+import { createBlockPublisher } from '../events/publisher';
+import type { CfQueue } from '@workspace/shared';
+import type { BlockEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
 import type { Block } from '../types/block.types';
 
-export function createBlockService(db: Db) {
+export function createBlockService(db: Db, eventsQueue?: CfQueue<BlockEvent> | null) {
   const blockRepo = createBlockRepo(db);
+  const publisher = createBlockPublisher(eventsQueue);
 
   return {
     async getBlocksByPage(pageId: string): Promise<Block[]> {

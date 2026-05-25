@@ -11,16 +11,16 @@ export const pageRoutes = new Hono<HonoEnv>()
   .use('*', authMiddleware)
 
   .get('/', async (c) => {
-    const db = createDb(c.env.DATABASE_URL);
-    const svc = createPageService(db);
+    const db       = createDb(c.env.DATABASE_URL);
+    const svc      = createPageService(db, c.env.EVENTS_QUEUE);
     const parentId = c.req.query('parentId');
-    const pages = await svc.getPages(parentId);
+    const pages    = await svc.getPages(parentId);
     return c.json({ pages });
   })
 
   .post('/', vValidator('json', PageInputSchema), async (c) => {
-    const db = createDb(c.env.DATABASE_URL);
-    const svc = createPageService(db);
+    const db  = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db, c.env.EVENTS_QUEUE);
     try {
       const page = await svc.createPage(c.req.valid('json'));
       return c.json({ page }, 201);
@@ -30,16 +30,16 @@ export const pageRoutes = new Hono<HonoEnv>()
   })
 
   .get('/:id', async (c) => {
-    const db = createDb(c.env.DATABASE_URL);
-    const svc = createPageService(db);
+    const db   = createDb(c.env.DATABASE_URL);
+    const svc  = createPageService(db, c.env.EVENTS_QUEUE);
     const page = await svc.getPageById(c.req.param('id'));
     if (!page) return c.json({ error: 'Page not found' }, 404);
     return c.json({ page });
   })
 
   .put('/:id', vValidator('json', PageUpdateSchema), async (c) => {
-    const db = createDb(c.env.DATABASE_URL);
-    const svc = createPageService(db);
+    const db  = createDb(c.env.DATABASE_URL);
+    const svc = createPageService(db, c.env.EVENTS_QUEUE);
     try {
       const page = await svc.updatePage(c.req.param('id'), c.req.valid('json'));
       if (!page) return c.json({ error: 'Page not found' }, 404);
@@ -50,8 +50,8 @@ export const pageRoutes = new Hono<HonoEnv>()
   })
 
   .delete('/:id', async (c) => {
-    const db = createDb(c.env.DATABASE_URL);
-    const svc = createPageService(db);
+    const db      = createDb(c.env.DATABASE_URL);
+    const svc     = createPageService(db, c.env.EVENTS_QUEUE);
     const deleted = await svc.deletePage(c.req.param('id'));
     if (!deleted) return c.json({ error: 'Page not found' }, 404);
     return c.json({ deleted: true });

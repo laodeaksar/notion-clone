@@ -1,4 +1,9 @@
 import { createPublisher } from '@workspace/shared';
+import type { CfQueue, Publisher } from '@workspace/shared';
 import type { BlockEvent } from '@workspace/shared';
 
-export const publisher = createPublisher<BlockEvent>('block-events');
+export function createBlockPublisher(
+  queue: CfQueue<BlockEvent> | null | undefined
+): Publisher<BlockEvent> {
+  return createPublisher<BlockEvent>(queue);
+}

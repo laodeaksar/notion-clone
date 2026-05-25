@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { routes } from './routes/index';
-import type { HonoEnv } from './types/env';
+import type { HonoEnv, Bindings } from './types/env';
+import type { CfMessageBatch, FileEvent } from '@workspace/shared';
 
 const app = new Hono<HonoEnv>();
 
@@ -27,4 +28,23 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+
+  async queue(batch: CfMessageBatch<FileEvent>, _env: Bindings): Promise<void> {
+    for (const msg of batch.messages) {
+      try {
+        const event = msg.body;
+        console.log(`[file-service] queue: ${event.type}`, event.payload);
+        // TODO: add downstream handlers per event type, e.g.:
+        // file.uploaded → generate thumbnail, run malware scan, update storage quota
+        // file.deleted  → invalidate CDN cache, reclaim storage quota
+        // file.moved    → update all page references to the old URL
+        msg.ack();
+      } catch (err) {
+        console.error('[file-service] queue processing error:', err);
+        msg.retry();
+      }
+    }
+  }
+};

@@ -3,14 +3,29 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
+# ── R2 Bucket ─────────────────────────────────────────────────────────────────
 [[r2_buckets]]
-binding = "R2_BUCKET"
+binding     = "R2_BUCKET"
 bucket_name = "notion-clone-files"
 
-# Secrets — set before deploying:
+# ── Cloudflare Queue ───────────────────────────────────────────────────────────
+# Before deploying, create the queue:
+#   wrangler queues create file-events
+#   wrangler queues create file-events-dlq   # dead-letter queue
+#
+[[queues.producers]]
+binding = "EVENTS_QUEUE"
+queue   = "file-events"
+
+[[queues.consumers]]
+queue             = "file-events"
+max_batch_size    = 10
+max_batch_timeout = 5
+max_retries       = 3
+dead_letter_queue = "file-events-dlq"
+
+# ── Secrets ────────────────────────────────────────────────────────────────────
+# Set before deploying:
 #   wrangler secret put R2_PUBLIC_URL
 #   wrangler secret put JWT_SECRET
-#
-# For local dev, add to .dev.vars:
-#   R2_PUBLIC_URL=https://pub-<hash>.r2.dev
-#   JWT_SECRET=your-secret
+#   wrangler secret put DATABASE_URL

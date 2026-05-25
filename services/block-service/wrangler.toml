@@ -3,6 +3,23 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Secrets — set before deploying:
+# ── Cloudflare Queue ───────────────────────────────────────────────────────────
+# Before deploying, create the queue:
+#   wrangler queues create block-events
+#   wrangler queues create block-events-dlq   # dead-letter queue
+#
+[[queues.producers]]
+binding = "EVENTS_QUEUE"
+queue   = "block-events"
+
+[[queues.consumers]]
+queue             = "block-events"
+max_batch_size    = 10
+max_batch_timeout = 5
+max_retries       = 3
+dead_letter_queue = "block-events-dlq"
+
+# ── Secrets ────────────────────────────────────────────────────────────────────
+# Set before deploying:
 #   wrangler secret put DATABASE_URL
 #   wrangler secret put JWT_SECRET

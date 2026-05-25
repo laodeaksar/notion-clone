@@ -16,7 +16,7 @@ export const fileRoutes = new Hono<HonoEnv>()
     const limitRaw = c.req.query('limit');
     const limit    = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 100, 1), 1000) : 100;
     const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db);
+    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db, c.env.EVENTS_QUEUE);
     try {
       const result = await svc.list(folder, cursor, limit);
       return c.json(result);
@@ -27,7 +27,7 @@ export const fileRoutes = new Hono<HonoEnv>()
 
   .post('/', async (c) => {
     const db          = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc         = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db);
+    const svc         = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db, c.env.EVENTS_QUEUE);
     const contentType = c.req.header('Content-Type') ?? '';
     const uploadedBy  = c.get('userId');
 
@@ -59,7 +59,7 @@ export const fileRoutes = new Hono<HonoEnv>()
   .get('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
     const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db);
+    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db, c.env.EVENTS_QUEUE);
     try {
       const result = await svc.head(publicId);
       return c.json(result);
@@ -72,7 +72,7 @@ export const fileRoutes = new Hono<HonoEnv>()
   .patch('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
     const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db);
+    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db, c.env.EVENTS_QUEUE);
     try {
       const body   = await c.req.json().catch(() => null);
       const parsed = v.safeParse(MoveInputSchema, body);
@@ -90,7 +90,7 @@ export const fileRoutes = new Hono<HonoEnv>()
   .delete('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
     const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db);
+    const svc      = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL, db, c.env.EVENTS_QUEUE);
     try {
       const result = await svc.delete(publicId);
       return c.json(result);
