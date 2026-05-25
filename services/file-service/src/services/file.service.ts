@@ -1,9 +1,9 @@
 import * as v from 'valibot';
 import { UploadInputSchema } from '../types/file.types';
-import { uploadToR2 } from '../storage/r2.storage';
+import { uploadToR2, deleteFromR2 } from '../storage/r2.storage';
 import { publisher } from '../events/publisher';
 import { DEFAULT_UPLOAD_FOLDER } from '../config';
-import type { UploadResult } from '../types/file.types';
+import type { UploadResult, DeleteResult } from '../types/file.types';
 
 export function createFileService(bucket: R2Bucket, publicUrl: string) {
   return {
@@ -14,6 +14,15 @@ export function createFileService(bucket: R2Bucket, publicUrl: string) {
         payload: { publicId: result.publicId, url: result.url, provider: result.provider }
       });
       return result;
+    },
+
+    async delete(publicId: string): Promise<DeleteResult> {
+      await deleteFromR2(publicId, bucket);
+      await publisher.publish({
+        type: 'file.deleted',
+        payload: { publicId }
+      });
+      return { publicId, deleted: true };
     }
   };
 }

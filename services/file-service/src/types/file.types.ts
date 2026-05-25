@@ -14,6 +14,12 @@ export type UploadResult = {
   provider: 'r2';
 };
 
+export type DeleteResult = {
+  publicId: string;
+  deleted: true;
+};
+
 export interface StorageProvider {
   upload(input: UploadInput, bucket: R2Bucket, publicUrl: string, folder: string): Promise<UploadResult>;
+  delete(publicId: string, bucket: R2Bucket): Promise<DeleteResult>;
 }

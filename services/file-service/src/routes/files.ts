@@ -17,4 +17,16 @@ export const fileRoutes = new Hono<HonoEnv>()
     } catch (err: any) {
       return c.json({ error: err.message ?? 'Upload failed' }, 400);
     }
+  })
+
+  .delete('/:publicId{.+}', async (c) => {
+    const publicId = c.req.param('publicId');
+    const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
+    try {
+      const result = await svc.delete(publicId);
+      return c.json(result);
+    } catch (err: any) {
+      const isNotFound = err.message?.includes('not found');
+      return c.json({ error: err.message ?? 'Delete failed' }, isNotFound ? 404 : 400);
+    }
   });

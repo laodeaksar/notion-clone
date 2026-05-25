@@ -39,6 +39,14 @@ export async function uploadToR2(
   };
 }
 
+export async function deleteFromR2(publicId: string, bucket: R2Bucket): Promise<void> {
+  const obj = await bucket.head(publicId);
+  if (!obj) {
+    throw new Error(`Object not found: ${publicId}`);
+  }
+  await bucket.delete(publicId);
+}
+
 function detectContentType(data: string): string {
   if (data.startsWith('data:')) {
     const match = data.match(/^data:([^;]+);/);

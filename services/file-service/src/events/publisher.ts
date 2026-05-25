@@ -1,7 +1,6 @@
-export type FileEvent = {
-  type: 'file.uploaded';
-  payload: { publicId: string; url: string; provider: 'r2' };
-};
+export type FileEvent =
+  | { type: 'file.uploaded'; payload: { publicId: string; url: string; provider: 'r2' } }
+  | { type: 'file.deleted'; payload: { publicId: string } };
 
 /**
  * CF Workers-compatible publisher.

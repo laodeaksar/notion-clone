@@ -50,10 +50,13 @@ export const FileUploadedPayloadSchema = z.object({
   provider: z.enum(['r2'])
 });
 
-export type FileEvent = {
-  type: 'file.uploaded';
-  payload: z.infer<typeof FileUploadedPayloadSchema>;
-};
+export const FileDeletedPayloadSchema = z.object({
+  publicId: z.string()
+});
+
+export type FileEvent =
+  | { type: 'file.uploaded'; payload: z.infer<typeof FileUploadedPayloadSchema> }
+  | { type: 'file.deleted'; payload: z.infer<typeof FileDeletedPayloadSchema> };
 
 // ─── Union ────────────────────────────────────────────────────────────────────
 
