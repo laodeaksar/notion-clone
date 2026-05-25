@@ -27,6 +27,12 @@ export const pages = pgTable('pages', {
   updatedAt: timestamp('updated_at').notNull()
 });
 
+export const documents = pgTable('documents', {
+  name:      varchar('name', { length: 255 }).primaryKey(),
+  state:     text('state'),
+  updatedAt: timestamp('updated_at').notNull()
+});
+
 export const blocks = pgTable('blocks', {
   id:        varchar('id', { length: 36 }).primaryKey(),
   // FK → pages.id: deleting a page removes all its blocks

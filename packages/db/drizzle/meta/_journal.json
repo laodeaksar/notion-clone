@@ -16,5 +16,12 @@
       "tag": "0001_add_foreign_keys",
       "breakpoints": true
     }
+    ,{
+      "idx": 2,
+      "version": "7",
+      "when": 1748138400000,
+      "tag": "0002_add_documents_table",
+      "breakpoints": true
+    }
   ]
 }

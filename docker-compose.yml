@@ -16,12 +16,19 @@ services:
     ports:
       - '6379:6379'
 
-  hocuspocus:
-    image: hocuspocus/hocuspocus:latest
+  hocuspocus-service:
+    build:
+      context: .
+      dockerfile: services/hocuspocus-service/Dockerfile
     environment:
-      - PORT=1234
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notion
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 1234
+      AUTH_REQUIRED: "false"
     ports:
       - '1234:1234'
+    depends_on:
+      - postgres
 
   api-gateway:
     build:

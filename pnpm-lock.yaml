@@ -284,6 +284,25 @@ importers:
         specifier: ^4.94.0
         version: 4.94.0(@cloudflare/workers-types@4.20260524.1)
 
+  services/hocuspocus-service:
+    dependencies:
+      '@hocuspocus/server':
+        specifier: ^2.0.0
+        version: 2.15.3(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      yjs:
+        specifier: ^13.0.0
+        version: 13.6.30
+    devDependencies:
+      '@types/bun':
+        specifier: latest
+        version: 1.3.14
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   services/page-service:
     dependencies:
       '@hono/valibot-validator':
@@ -1226,11 +1245,20 @@ packages:
   '@hocuspocus/common@1.1.3':
     resolution: {integrity: sha512-U5wQcMsVTooUKSqAq8m2bmMPWaVp78oTl1YFcJ2v3Dq0Wt1MBik3AohcnuUZ2JcP1fblf8lZVugCs9qg9mbu6g==}
 
+  '@hocuspocus/common@2.15.3':
+    resolution: {integrity: sha512-Rzh1HF0a2o/tf90A3w2XNdXd9Ym3aQzMDfD3lAUONCX9B9QOdqdyiORrj6M25QEaJrEIbXFy8LtAFcL0wRdWzA==}
+
   '@hocuspocus/provider@1.1.3':
     resolution: {integrity: sha512-8AYFM1q3ICEyK835USGskMsT/z9QgiJOqYz1IStR4OrC08RVBTEm0vDdtHx+5y3wxIMg22tHQL7ubghWRj3BPg==}
     peerDependencies:
       y-protocols: ^1.0.5
       yjs: ^13.5.29
+
+  '@hocuspocus/server@2.15.3':
+    resolution: {integrity: sha512-Ju4ty4/7JtmvivcP7gKReOLf8KrFwN7Yx/5VhXYh4TRULy4kSo2fsDVUaluPp0neZa6PbVhizJuzlOim73IEbQ==}
+    peerDependencies:
+      y-protocols: ^1.0.6
+      yjs: ^13.6.8
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -2258,6 +2286,9 @@ packages:
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
 
+  '@types/bun@1.3.14':
+    resolution: {integrity: sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw==}
+
   '@types/cookie@0.6.0':
     resolution: {integrity: sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==}
 
@@ -2555,6 +2586,9 @@ packages:
   ast-types@0.16.1:
     resolution: {integrity: sha512-6t10qk83GOG8p0vKmaCr8eiilZwO171AvbROMtvvNiwrTly62t+7XkA8RdIIVbpMhCASAsxgAzdRSwh6nw/5Dg==}
     engines: {node: '>=4'}
+
+  async-lock@1.4.1:
+    resolution: {integrity: sha512-Az2ZTpuytrtqENulXwO3GGv1Bztugx6TT37NIo7imr/Qo0gsYiGtSdBa2B6fsXhTpVZDNfu1Qn3pk531e3q+nQ==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -5000,6 +5034,10 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
+    hasBin: true
+
   uzip@0.20201231.0:
     resolution: {integrity: sha512-OZeJfZP+R0z9D6TmBgLq2LHzSSptGMGDGigGiEe0pr8UBe/7fdflgHlHBNDASTXB5jnFuxHpNaJywSg8YFeGng==}
 
@@ -5895,6 +5933,10 @@ snapshots:
     dependencies:
       lib0: 0.2.117
 
+  '@hocuspocus/common@2.15.3':
+    dependencies:
+      lib0: 0.2.117
+
   '@hocuspocus/provider@1.1.3(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
     dependencies:
       '@hocuspocus/common': 1.1.3
@@ -5902,6 +5944,20 @@ snapshots:
       lib0: 0.2.117
       y-protocols: 1.0.7(yjs@13.6.30)
       yjs: 13.6.30
+
+  '@hocuspocus/server@2.15.3(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
+    dependencies:
+      '@hocuspocus/common': 2.15.3
+      async-lock: 1.4.1
+      kleur: 4.1.5
+      lib0: 0.2.117
+      uuid: 11.1.1
+      ws: 8.20.1
+      y-protocols: 1.0.7(yjs@13.6.30)
+      yjs: 13.6.30
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@hono/node-server@1.19.14(hono@4.12.22)':
     dependencies:
@@ -6805,6 +6861,10 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/bun@1.3.14':
+    dependencies:
+      bun-types: 1.3.14
+
   '@types/cookie@0.6.0': {}
 
   '@types/esrecurse@4.3.1': {}
@@ -7088,6 +7148,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  async-lock@1.4.1: {}
+
   axobject-query@4.1.0: {}
 
   balanced-match@1.0.2: {}
@@ -7146,7 +7208,6 @@ snapshots:
   bun-types@1.3.14:
     dependencies:
       '@types/node': 25.3.0
-    optional: true
 
   bundle-name@4.1.0:
     dependencies:
@@ -9591,6 +9652,8 @@ snapshots:
       react: 19.2.4
 
   util-deprecate@1.0.2: {}
+
+  uuid@11.1.1: {}
 
   uzip@0.20201231.0: {}
 
