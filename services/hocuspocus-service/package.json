@@ -9,9 +9,10 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
-    "@hocuspocus/server": "^2.0.0",
-    "@workspace/db": "workspace:*",
-    "yjs": "^13.0.0"
+    "@hocuspocus/server":             "^4.1.0",
+    "@hocuspocus/extension-database": "^4.1.0",
+    "@hocuspocus/extension-logger":   "^4.1.0",
+    "@workspace/db":                  "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",
