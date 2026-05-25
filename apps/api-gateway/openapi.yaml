@@ -1,10 +1,11 @@
 openapi: 3.0.3
 info:
   title: Notion Clone API Gateway
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Edge API gateway for the Notion Clone monorepo.
     Proxies requests to internal microservices (auth, page, block, file).
+    File endpoints query the database directly for richer filtering and pagination.
 
     **Rate Limiting**
     Every response includes rate limit headers:
@@ -166,6 +167,82 @@ components:
           type: string
           format: date-time
 
+    File:
+      type: object
+      required: [id, name, url, size, provider, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: R2 object key — acts as the file's unique ID (may contain slashes, e.g. `uploads/abc.png`).
+          example: "uploads/abc123.png"
+        name:
+          type: string
+          description: Original filename.
+          example: "report.png"
+        url:
+          type: string
+          format: uri
+          description: Public URL served from R2.
+          example: "https://pub-xxxx.r2.dev/uploads/abc123.png"
+        size:
+          type: integer
+          description: File size in bytes.
+          example: 204800
+        contentType:
+          type: string
+          nullable: true
+          description: MIME type.
+          example: "image/png"
+        folder:
+          type: string
+          nullable: true
+          description: Folder prefix within the bucket.
+          example: "uploads"
+        provider:
+          type: string
+          description: Storage provider.
+          example: "r2"
+        uploadedBy:
+          type: string
+          nullable: true
+          description: User ID of the uploader; null for anonymous uploads.
+          example: "user-uuid"
+        pageId:
+          type: string
+          nullable: true
+          description: Page this file is associated with; null if unattached.
+          example: "page-uuid"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    FileList:
+      type: object
+      required: [files, count, hasMore]
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor to pass as `cursor` in the next request. Null when there are no more results.
+          example: "dXBsb2Fkcy8y..."
+        count:
+          type: integer
+          description: Number of items in this page.
+          example: 50
+        hasMore:
+          type: boolean
+          description: Whether more results exist beyond this page.
+          example: true
+
   responses:
     RateLimited:
       description: Too Many Requests — rate limit exceeded.
@@ -183,6 +260,13 @@ components:
 
     Unauthorized:
       description: Unauthorized — missing or invalid JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden — authenticated but not the resource owner.
       content:
         application/json:
           schema:
@@ -596,12 +680,512 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
+  /files:
+    get:
+      summary: List files
+      description: |
+        Returns a paginated list of files from the database.
+        Supports filtering by uploader and associated page.
+        Results are sorted `createdAt DESC` — newest first.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: uploadedBy
+          schema:
+            type: string
+          description: Filter by uploader user ID.
+        - in: query
+          name: pageId
+          schema:
+            type: string
+          description: Filter by associated page ID.
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous response's `nextCursor`.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Number of results per page.
+      responses:
+        '200':
+          description: Paginated file list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+              example:
+                files: []
+                nextCursor: null
+                count: 0
+                hasMore: false
+        '400':
+          description: Invalid cursor.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/stats:
+    get:
+      summary: File storage statistics
+      description: |
+        Returns aggregate file counts and total bytes stored, broken down by
+        uploader and associated page. All three aggregates run in parallel
+        against the database — single round-trip.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Storage statistics.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [totalFiles, totalBytes, byUploader, byPage]
+                properties:
+                  totalFiles:
+                    type: integer
+                    example: 84
+                  totalBytes:
+                    type: integer
+                    description: Total storage used across all files, in bytes.
+                    example: 52428800
+                  byUploader:
+                    type: array
+                    description: Per-uploader breakdown, sorted by fileCount DESC.
+                    items:
+                      type: object
+                      properties:
+                        uploadedBy:
+                          type: string
+                          nullable: true
+                        fileCount:
+                          type: integer
+                        totalBytes:
+                          type: integer
+                  byPage:
+                    type: array
+                    description: Per-page breakdown, sorted by fileCount DESC.
+                    items:
+                      type: object
+                      properties:
+                        pageId:
+                          type: string
+                          nullable: true
+                        fileCount:
+                          type: integer
+                        totalBytes:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/search:
+    get:
+      summary: Search files
+      description: |
+        Full-text search across file `name` and `folder` using Postgres `ILIKE`.
+        Supports the same optional filters and cursor-based pagination as `GET /files`.
+        Special characters (`%`, `_`, `\`) in `q` are automatically escaped.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Search term — matched as a case-insensitive substring against `name` and `folder`.
+          example: "report"
+        - in: query
+          name: uploadedBy
+          schema:
+            type: string
+          description: Further narrow results to a specific uploader.
+        - in: query
+          name: pageId
+          schema:
+            type: string
+          description: Further narrow results to files attached to a specific page.
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous search response.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/FileList'
+                  - type: object
+                    properties:
+                      query:
+                        type: string
+                        description: The search term that was used.
+                        example: "report"
+        '400':
+          description: Missing or empty `q` parameter, or invalid cursor.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/bulk-delete:
+    post:
+      summary: Bulk delete files
+      description: |
+        Deletes up to 100 files in a single request.
+
+        **Flow:**
+        1. Fetches all matching DB records in one `SELECT … WHERE id IN (…)`.
+        2. Classifies each id: `owned`, `not-found`, or `forbidden`.
+        3. Batch-deletes owned records in one `DELETE … WHERE id IN (…)`.
+        4. Fires parallel `DELETE` calls to the file-service for R2 removal
+           (`Promise.allSettled` — a flaky R2 call does not abort the rest).
+
+        R2 failures are surfaced as `r2Warnings` without rolling back DB deletes.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: string
+                    minLength: 1
+                  example: ["uploads/abc.png", "uploads/def.jpg"]
+      responses:
+        '200':
+          description: Per-file deletion results.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, failed, deletedCount, failedCount]
+                properties:
+                  deleted:
+                    type: array
+                    items:
+                      type: string
+                    description: IDs successfully deleted.
+                    example: ["uploads/abc.png"]
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        reason:
+                          type: string
+                          enum: [Not found, Forbidden]
+                    example: [{ id: "uploads/def.jpg", reason: "Forbidden" }]
+                  deletedCount:
+                    type: integer
+                    example: 1
+                  failedCount:
+                    type: integer
+                    example: 1
+                  r2Warnings:
+                    type: array
+                    description: Present only when one or more R2 removals failed (DB record was still deleted).
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        warning:
+                          type: string
+        '400':
+          description: Invalid request body (empty array, too many ids, wrong types).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}:
+    get:
+      summary: Get file metadata
+      description: |
+        Returns a single file's full metadata from the database by its R2 key.
+
+        **Note:** `{id}` is the R2 object key and may contain slashes
+        (e.g. `uploads/abc.png`). URL-encode slashes as `%2F` when calling
+        from a client: `/files/uploads%2Fabc.png`.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      responses:
+        '200':
+          description: File metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    patch:
+      summary: Update file metadata
+      description: |
+        Updates mutable file metadata — `name`, `folder`, and/or `pageId` — directly
+        in the database. Does **not** touch R2; use the file-service PATCH for
+        physical object moves.
+
+        Only the original uploader may update a file. Files with `uploadedBy = null`
+        may be updated by any authenticated user.
+
+        At least one field must be provided.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  example: "final-report.png"
+                folder:
+                  type: string
+                  nullable: true
+                  example: "docs"
+                pageId:
+                  type: string
+                  nullable: true
+                  example: "page-uuid"
+      responses:
+        '200':
+          description: Updated file record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '400':
+          description: Invalid body (empty object or wrong types).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    delete:
+      summary: Delete a file
+      description: |
+        Ownership check (DB) → proxy `DELETE` to the file-service (R2 removal
+        + DB purge + `file.deleted` event).
+
+        Only the original uploader may delete. Files with `uploadedBy = null`
+        may be deleted by any authenticated user.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      responses:
+        '200':
+          description: File deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicId:
+                    type: string
+                  deleted:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}/url:
+    get:
+      summary: Issue a signed download URL
+      description: |
+        Generates a short-lived signed download URL for the file.
+        The token is HMAC-SHA256 over `fileId|expiresAt` using `JWT_SECRET` —
+        no extra credentials or database writes required.
+
+        Pass the returned `signedUrl` to unauthenticated clients (e.g. embed in
+        an `<img>` tag or share with a collaborator). The URL expires after
+        `expiresIn` seconds.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+        - in: query
+          name: ttl
+          schema:
+            type: integer
+            minimum: 60
+            maximum: 86400
+            default: 900
+          description: Token lifetime in seconds (default 15 min, max 24 h).
+      responses:
+        '200':
+          description: Signed download URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signedUrl, expiresAt, expiresIn]
+                properties:
+                  signedUrl:
+                    type: string
+                    format: uri
+                    example: "https://gateway.example.com/files/uploads%2Fabc.png/download?sig=abc123&expires=1748207234"
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    example: "2025-01-15T11:15:00Z"
+                  expiresIn:
+                    type: integer
+                    description: Token lifetime in seconds.
+                    example: 900
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}/download:
+    get:
+      summary: Token-gated file download
+      description: |
+        Verifies the HMAC token issued by `GET /files/{id}/url` and
+        `302`-redirects to the file's actual public R2 URL.
+
+        No JWT authentication required — the `sig` token is the credential.
+        The file is served directly from R2; no bandwidth flows through the gateway.
+      tags: [Files]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+        - in: query
+          name: sig
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 base64url token from `GET /files/{id}/url`.
+        - in: query
+          name: expires
+          required: true
+          schema:
+            type: integer
+          description: Unix timestamp (seconds) at which the token expires.
+      responses:
+        '302':
+          description: Redirect to the file's public R2 URL.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Missing token parameters or malformed `expires` value.
+        '401':
+          description: Invalid HMAC signature or expired token.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /upload:
     post:
       summary: Upload a file via the file-service
       description: |
         Accepts a base64-encoded file string and forwards it to the file-service,
-        which uploads it to Cloudinary and returns the public URL.
+        which uploads it to R2 and returns the public URL.
       tags: [Files]
       requestBody:
         required: true
@@ -615,16 +1199,17 @@ paths:
                   type: string
                   description: Base64-encoded file content (data URL).
                   example: "data:image/png;base64,iVBORw0KGgo..."
+                filename:
+                  type: string
+                  description: Optional filename override.
+                  example: "screenshot.png"
+                folder:
+                  type: string
+                  description: Optional folder prefix within the bucket.
+                  example: "uploads"
       responses:
         '200':
           description: Uploaded file details.
-          headers:
-            X-RateLimit-Limit:
-              $ref: '#/components/headers/X-RateLimit-Limit'
-            X-RateLimit-Remaining:
-              $ref: '#/components/headers/X-RateLimit-Remaining'
-            X-RateLimit-Reset:
-              $ref: '#/components/headers/X-RateLimit-Reset'
           content:
             application/json:
               schema:
@@ -633,9 +1218,16 @@ paths:
                   url:
                     type: string
                     format: uri
-                    description: Public Cloudinary URL of the uploaded file.
+                    description: Public R2 URL of the uploaded file.
                   publicId:
                     type: string
-                    description: Cloudinary public ID.
+                    description: R2 object key.
+                  size:
+                    type: integer
+                  contentType:
+                    type: string
+                  provider:
+                    type: string
+                    example: "r2"
         '429':
           $ref: '#/components/responses/RateLimited'
