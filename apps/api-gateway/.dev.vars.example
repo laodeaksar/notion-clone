@@ -1,0 +1,15 @@
+# Wrangler local dev secrets — copy this file to .dev.vars and fill in real values.
+# .dev.vars is gitignored; NEVER commit the real file.
+#
+# Usage:
+#   cp .dev.vars.example .dev.vars
+#   # Edit .dev.vars with your actual values
+#   pnpm dev   # wrangler picks up .dev.vars automatically
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+JWT_SECRET=change-me-to-a-long-random-string
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# Neon (or any Postgres) connection string.
+# Get yours from https://neon.tech → project → Connection Details.
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require

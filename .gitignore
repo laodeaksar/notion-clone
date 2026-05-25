@@ -10,6 +10,9 @@ node_modules
 .env.test.local
 .env.production.local
 
+# Wrangler local secrets (never commit real values)
+.dev.vars
+
 # Testing
 coverage
 

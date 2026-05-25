@@ -44,8 +44,14 @@ AUTH_SERVICE_URL  = "https://GANTI-DENGAN-URL-AUTH-SERVICE"
 BLOCK_SERVICE_URL = "https://GANTI-DENGAN-URL-BLOCK-SERVICE"
 FILE_SERVICE_URL  = "https://GANTI-DENGAN-URL-FILE-SERVICE"
 
-# JWT_SECRET JANGAN diisi di sini — gunakan:
-#   pnpm exec wrangler secret put JWT_SECRET
+# Secrets JANGAN diisi di sini — gunakan wrangler secret atau .dev.vars:
+#
+#   Production (Cloudflare):
+#     pnpm exec wrangler secret put JWT_SECRET
+#     pnpm exec wrangler secret put DATABASE_URL
+#
+#   Local dev (.dev.vars — sudah di-gitignore):
+#     Salin apps/api-gateway/.dev.vars.example → .dev.vars lalu isi nilainya.
 
 # ── Module Rules ──────────────────────────────────────────────────────────────
 # Memungkinkan wrangler mem-bundle openapi.yaml sebagai Text module saat deploy.
