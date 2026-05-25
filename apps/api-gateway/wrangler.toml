@@ -31,7 +31,8 @@ compatibility_flags = ["nodejs_compat"]
 # Lalu tempel id-nya di bawah (ganti "GANTI-DENGAN-ID-DARI-WRANGLER").
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id      = "la_ode_aksar"
+id      = "f6d12a7d5d6d426e8a9b82e390bc0db4"
+
 
 # ── Environment Variables ──────────────────────────────────────────────────────
 # Cloudflare Workers tidak bisa menjangkau `localhost`.
