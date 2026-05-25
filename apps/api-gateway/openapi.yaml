@@ -718,6 +718,28 @@ paths:
         Supports filtering by uploader and associated page.
         Results are sorted `createdAt DESC` — newest first.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -G 'http://localhost:8787/files' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              --data-urlencode 'limit=20' \
+              --data-urlencode 'uploadedBy=user-uuid'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const res = await fetch('/files?limit=20&uploadedBy=user-uuid', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { files, nextCursor, hasMore } = await res.json();
+
+            // Fetch next page
+            if (hasMore) {
+              const next = await fetch(`/files?cursor=${nextCursor}&limit=20`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            }
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -830,6 +852,22 @@ paths:
         Supports the same optional filters and cursor-based pagination as `GET /files`.
         Special characters (`%`, `_`, `\`) in `q` are automatically escaped.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -G 'http://localhost:8787/files/search' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              --data-urlencode 'q=report' \
+              --data-urlencode 'limit=20'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const params = new URLSearchParams({ q: 'report', limit: '20' });
+            const res = await fetch(`/files/search?${params}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { files, query, nextCursor } = await res.json();
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -900,6 +938,26 @@ paths:
 
         R2 failures are surfaced as `r2Warnings` without rolling back DB deletes.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X POST 'http://localhost:8787/files/bulk-delete' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              -H 'Content-Type: application/json' \
+              -d '{"ids":["uploads/abc.png","uploads/def.jpg"]}'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const res = await fetch('/files/bulk-delete', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ ids: ['uploads/abc.png', 'uploads/def.jpg'] })
+            });
+            const { deleted, failed, deletedCount, r2Warnings } = await res.json();
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -1015,6 +1073,27 @@ paths:
 
         At least one field must be provided.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X PATCH 'http://localhost:8787/files/uploads%2Fabc123.png' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              -H 'Content-Type: application/json' \
+              -d '{"pageId":"page-uuid","folder":"docs"}'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const res = await fetch(`/files/${fileId}`, {
+              method: 'PATCH',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ pageId: 'page-uuid', folder: 'docs' })
+            });
+            const updatedFile = await res.json();
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -1073,6 +1152,21 @@ paths:
         Only the original uploader may delete. Files with `uploadedBy = null`
         may be deleted by any authenticated user.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X DELETE 'http://localhost:8787/files/uploads%2Fabc123.png' \
+              -H 'Authorization: Bearer YOUR_JWT'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const res = await fetch(`/files/${fileId}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { deleted } = await res.json(); // { publicId, deleted: true }
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -1118,6 +1212,32 @@ paths:
         an `<img>` tag or share with a collaborator). The URL expires after
         `expiresIn` seconds.
       tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            # Get a signed URL valid for 30 minutes
+            curl 'http://localhost:8787/files/uploads%2Fabc123.png/url?ttl=1800' \
+              -H 'Authorization: Bearer YOUR_JWT'
+
+            # Response: { signedUrl, expiresAt, expiresIn }
+            # Use the signedUrl directly — no auth header needed
+            curl -L 'https://gateway.example.com/files/uploads%2Fabc.png/download?sig=...&expires=...'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            // 1. Issue a signed URL (authenticated)
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const { signedUrl, expiresIn } = await fetch(
+              `/files/${fileId}/url?ttl=1800`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            ).then(r => r.json());
+
+            // 2. Use in an <img> tag or share with anyone — no auth needed
+            document.querySelector('img').src = signedUrl;
+
+            // 3. Or fetch the file directly (follows the redirect)
+            const file = await fetch(signedUrl);
       security:
         - bearerAuth: []
         - cookieAuth: []

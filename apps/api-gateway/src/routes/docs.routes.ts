@@ -118,10 +118,26 @@ docsRoutes.get('/docs', (c) =>
         font-weight: 600;
         padding-left: 1rem;
       }
+      .redoc-link {
+        position: fixed;
+        bottom: 1.25rem;
+        right: 1.25rem;
+        z-index: 9999;
+        background: #1e1e2e;
+        color: #cdd6f4;
+        font-family: sans-serif;
+        font-size: 0.8rem;
+        padding: 0.45rem 0.9rem;
+        border-radius: 6px;
+        text-decoration: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      }
+      .redoc-link:hover { background: #313244; }
     </style>
   </head>
   <body>
     <div id="swagger-ui"></div>
+    <a class="redoc-link" href="/redoc" target="_blank">ReDoc (with code samples) →</a>
     <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin="anonymous"></script>
     <script>
       window.onload = async () => {
@@ -139,6 +155,62 @@ docsRoutes.get('/docs', (c) =>
           defaultModelExpandDepth: 2,
         });
       };
+    </script>
+  </body>
+</html>`)
+);
+
+docsRoutes.get('/redoc', (c) =>
+  c.html(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notion Clone API — ReDoc</title>
+    <style>
+      body { margin: 0; padding: 0; }
+      .swagger-link {
+        position: fixed;
+        top: 1rem;
+        right: 1.25rem;
+        z-index: 9999;
+        background: #1e1e2e;
+        color: #cdd6f4;
+        font-family: sans-serif;
+        font-size: 0.8rem;
+        padding: 0.45rem 0.9rem;
+        border-radius: 6px;
+        text-decoration: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      }
+      .swagger-link:hover { background: #313244; }
+    </style>
+  </head>
+  <body>
+    <a class="swagger-link" href="/docs">← Swagger UI (try it out)</a>
+    <div id="redoc-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/redoc/bundles/redoc.standalone.js" crossorigin="anonymous"></script>
+    <script>
+      Redoc.init(
+        '/openapi.json',
+        {
+          theme: {
+            colors: { primary: { main: '#89b4fa' } },
+            typography: { fontSize: '15px', fontFamily: 'Inter, system-ui, sans-serif' },
+            sidebar: { backgroundColor: '#1e1e2e', textColor: '#cdd6f4' },
+            rightPanel: { backgroundColor: '#181825' }
+          },
+          hideDownloadButton: false,
+          hideHostname: false,
+          pathInMiddlePanel: false,
+          scrollYOffset: 0,
+          expandResponses: '200',
+          requiredPropsFirst: true,
+          sortPropsAlphabetically: false,
+          showExtensions: ['x-codeSamples']
+        },
+        document.getElementById('redoc-container')
+      );
     </script>
   </body>
 </html>`)
