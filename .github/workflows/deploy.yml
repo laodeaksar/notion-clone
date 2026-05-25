@@ -204,3 +204,39 @@ jobs:
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # ── 6. web (Cloudflare Pages) ─────────────────────────────────────────────
+  #       Deploy SvelteKit frontend ke Cloudflare Pages.
+  #       Bisa jalan paralel dengan service lain — tidak ada dependensi.
+  deploy-web:
+    name: Deploy web ke Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        working-directory: apps/web
+        run: pnpm build
+        env:
+          PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
+          PUBLIC_HOCUSPOCUS_URL: ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
+          API_GATEWAY_URL: ${{ vars.API_GATEWAY_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Deploy ke Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: pages deploy .svelte-kit/cloudflare --project-name=notion-web --commit-dirty=true

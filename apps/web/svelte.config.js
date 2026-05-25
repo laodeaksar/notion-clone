@@ -1,8 +1,13 @@
-import adapter from '@sveltejs/adapter-vercel';
+import adapter from '@sveltejs/adapter-cloudflare';
 
 export default {
   kit: {
-    adapter: adapter(),
+    adapter: adapter({
+      routes: {
+        include: ['/*'],
+        exclude: ['<all>']
+      }
+    }),
     files: {
       routes: 'src/routes',
       lib: 'src/lib'

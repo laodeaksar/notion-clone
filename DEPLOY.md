@@ -1,4 +1,4 @@
-# Panduan Deploy ke Cloudflare Workers
+# Panduan Deploy ke Cloudflare Workers & Pages
 
 Ada **dua cara** deploy — pilih salah satu:
 
@@ -68,6 +68,9 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `PAGE_SERVICE_URL` | `https://page-service.YOUR-SUBDOMAIN.workers.dev` |
 | `BLOCK_SERVICE_URL` | `https://block-service.YOUR-SUBDOMAIN.workers.dev` |
 | `FILE_SERVICE_URL` | `https://file-service.YOUR-SUBDOMAIN.workers.dev` |
+| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
+| `PUBLIC_HOCUSPOCUS_URL` | `wss://YOUR-HOCUSPOCUS-HOST` |
 
 > **Cara tahu subdomain:** Setelah deploy pertama berhasil, URL muncul di log GitHub Actions. Atau cek di Cloudflare dashboard → Workers.
 
@@ -87,6 +90,7 @@ GitHub Actions akan:
 1. Jalankan **migrasi database** ke Neon — schema selalu up-to-date sebelum kode baru aktif
 2. Deploy **auth**, **page**, **block**, **file** service **secara paralel** (setelah migrasi selesai)
 3. Setelah keempat selesai, deploy **api-gateway** secara otomatis
+4. Deploy **web frontend** ke Cloudflare Pages secara paralel (tidak perlu tunggu service lain)
 
 Pantau progress di tab **Actions** di GitHub repo.
 
@@ -97,12 +101,14 @@ Pantau progress di tab **Actions** di GitHub repo.
 ```
 push to main
      │
+     ├──► deploy-web  ──────────────────────────► Cloudflare Pages
+     │
      ▼
 migrate-db  (drizzle-kit migrate → Neon)
      │
      ├── deploy-auth  ──┐
      ├── deploy-page  ──┤  (paralel)
-     ├── deploy-block ──┼──► deploy-gateway
+     ├── deploy-block ──┼──► deploy-gateway ──► Cloudflare Workers
      └── deploy-file  ──┘
 ```
 
@@ -112,7 +118,32 @@ migrate-db  (drizzle-kit migrate → Neon)
 
 ---
 
-### Verifikasi
+### Verifikasi Web (Cloudflare Pages)
+
+Setelah job `deploy-web` hijau, frontend tersedia di:
+
+```
+https://notion-web.pages.dev
+```
+
+> URL ini muncul di log GitHub Actions step "Deploy ke Cloudflare Pages". Bisa juga dicek di Cloudflare dashboard → **Workers & Pages** → **notion-web**.
+
+---
+
+### Langkah 3.5 — Buat Project Cloudflare Pages (sekali saja)
+
+Sebelum workflow pertama berjalan, buat project Pages lebih dulu agar wrangler bisa deploy:
+
+1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create**
+2. Pilih tab **Pages** → **Connect to Git** (atau **Upload assets** untuk manual)
+3. Beri nama project: `notion-web`
+4. Klik **Save**
+
+> Setelah project ada, GitHub Actions akan otomatis push ke project tersebut setiap kali ada push ke `main`.
+
+---
+
+### Verifikasi API Gateway
 
 Setelah semua job hijau di GitHub Actions, buka:
 
@@ -165,7 +196,21 @@ cd services/file-service  && pnpm exec wrangler deploy --dry-run --outdir dist
 cd apps/api-gateway       && pnpm exec wrangler deploy --dry-run --outdir dist
 ```
 
-### Langkah B — Upload ke Dashboard
+### Langkah A2 — Build web untuk Cloudflare Pages
+
+```bash
+# Di root project:
+pnpm install
+cd apps/web && pnpm build
+# Output ada di: apps/web/.svelte-kit/cloudflare/
+```
+
+Lalu deploy manual:
+```bash
+cd apps/web && pnpm exec wrangler pages deploy .svelte-kit/cloudflare --project-name=notion-web
+```
+
+### Langkah B — Upload ke Dashboard (Workers)
 
 Untuk setiap service:
 1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Create Worker**
@@ -173,9 +218,26 @@ Untuk setiap service:
 3. Hapus semua kode → paste isi file `dist/index.js` hasil bundle
 4. **Save and deploy**
 
+### Langkah B2 — Upload web ke Cloudflare Pages (manual)
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages**
+2. Pilih **Upload assets**
+3. Beri nama project: `notion-web`
+4. Upload seluruh isi folder `apps/web/.svelte-kit/cloudflare/`
+5. Klik **Deploy site**
+
 ### Langkah C — Set Secrets & Vars
 
 Worker → **Settings** → **Variables and Secrets** → tambahkan sesuai tabel di atas.
+
+Untuk Cloudflare Pages → **Settings** → **Environment variables** → tambahkan:
+
+| Variable | Production |
+|----------|-----------|
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
+| `PUBLIC_HOCUSPOCUS_URL` | `wss://YOUR-HOCUSPOCUS-HOST` |
+| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
+| `JWT_SECRET` | (sama dengan JWT_SECRET di Workers) |
 
 ---
 
@@ -188,3 +250,6 @@ Worker → **Settings** → **Variables and Secrets** → tambahkan sesuai tabel
 | `500 Internal Server Error` | `DATABASE_URL` atau `JWT_SECRET` belum diset | Periksa tab Secrets di GitHub / Cloudflare |
 | `upstream: unreachable` di `/ping` | URL service salah di Variables | Cek `*_SERVICE_URL` di GitHub Actions Variables |
 | `401 Unauthorized` | `JWT_SECRET` berbeda antar service | Pastikan semua pakai secret yang sama |
+| `Project not found` saat deploy Pages | Project `notion-web` belum dibuat | Buat project di CF dashboard dulu (Langkah 3.5) |
+| Halaman web blank / API gagal | `PUBLIC_API_GATEWAY_URL` belum diset | Tambahkan ke GitHub Variables dan redeploy |
+| `Could not resolve` saat build web | Adapter belum terinstall | Jalankan `pnpm install` di root dulu |
