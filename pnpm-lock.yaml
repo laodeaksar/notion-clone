@@ -26,6 +26,9 @@ importers:
       '@hono/valibot-validator':
         specifier: ^0.6.1
         version: 0.6.1(hono@4.12.22)(valibot@1.4.0(typescript@5.9.3))
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.12.22
         version: 4.12.22
@@ -140,9 +143,9 @@ importers:
 
   packages/shared:
     dependencies:
-      zod:
-        specifier: ^3.22.2
-        version: 3.25.76
+      valibot:
+        specifier: ^1.4.0
+        version: 1.4.0(typescript@5.9.3)
     devDependencies:
       typescript:
         specifier: ^5.4.0
@@ -220,6 +223,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.12.22
         version: 4.12.22
@@ -245,6 +251,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.12.22
         version: 4.12.22
@@ -267,6 +276,9 @@ importers:
       '@hono/valibot-validator':
         specifier: ^0.6.1
         version: 0.6.1(hono@4.12.22)(valibot@1.4.0(typescript@5.9.3))
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.12.22
         version: 4.12.22
@@ -298,6 +310,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@types/bun':
         specifier: latest
@@ -314,6 +329,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.12.22
         version: 4.12.22

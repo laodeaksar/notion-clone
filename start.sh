@@ -4,6 +4,11 @@ set -e
 export DATABASE_URL="${DATABASE_URL}"
 export JWT_SECRET="${JWT_SECRET:-dev-secret}"
 
+# Apply any pending database migrations before starting services
+echo "Running database migrations..."
+pnpm --filter @workspace/db migrate
+echo "Migrations done."
+
 # Start microservices in background
 PORT=8081 bun run services/block-service/src/index.ts &
 PORT=8082 bun run services/page-service/src/index.ts &
