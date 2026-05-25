@@ -12,7 +12,8 @@ export {
   asc, desc,
   inArray, notInArray,
   isNull, isNotNull,
-  sql, count, sum, avg, min, max
+  sql, count, sum, avg, min, max,
+  like, ilike
 } from 'drizzle-orm';
 
 /**

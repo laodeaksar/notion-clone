@@ -6,7 +6,7 @@ import { UploadBodySchema } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
-import { createDb, files, eq, and, lt, or, asc, desc } from '@workspace/db';
+import { createDb, files, eq, and, lt, or, asc, desc, ilike } from '@workspace/db';
 
 // ─── Patch schema ─────────────────────────────────────────────────────────────
 // All fields are optional; at least one must be provided.
@@ -252,6 +252,96 @@ fileRoutes.get('/files/stats', requireAuth, async (c) => {
       fileCount: r.fileCount,
       totalBytes: Number(r.totalBytes ?? 0),
     })),
+  });
+});
+
+/**
+ * GET /files/search
+ *
+ * Full-text search across file `name` and `folder` using Postgres ILIKE.
+ * Supports the same optional filters and cursor-based pagination as GET /files.
+ *
+ * Query params:
+ *   q          — search term (required, min 1 char)
+ *   uploadedBy — narrow results to a specific uploader
+ *   pageId     — narrow results to files attached to a page
+ *   cursor     — opaque pagination cursor from a previous response
+ *   limit      — page size, 1–200, default 50
+ *
+ * Response:
+ *   { files, nextCursor, count, hasMore, query }
+ *
+ * Errors:
+ *   400 — missing or empty "q"
+ *   401 — not authenticated
+ *   503 — database not configured
+ */
+fileRoutes.get('/files/search', requireAuth, async (c) => {
+  const q = c.req.query('q')?.trim();
+  if (!q) return c.json({ error: 'Missing search query "q"' }, 400);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const uploadedBy = c.req.query('uploadedBy') ?? undefined;
+  const pageId     = c.req.query('pageId')     ?? undefined;
+  const cursorRaw  = c.req.query('cursor')     ?? undefined;
+  const limitRaw   = c.req.query('limit');
+  const limit      = limitRaw
+    ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 200)
+    : 50;
+
+  const cursorParsed = cursorRaw ? decodeCursor(cursorRaw) : null;
+  if (cursorRaw && !cursorParsed) return c.json({ error: 'Invalid cursor' }, 400);
+
+  // Escape ILIKE special characters so user input is treated as a literal string.
+  // Then wrap in % wildcards for a "contains" match.
+  const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
+
+  const db         = createDb(dbUrl);
+  const conditions = [
+    // Match either the filename or the folder path
+    or(
+      ilike(files.name,   pattern),
+      ilike(files.folder, pattern)
+    )!,
+  ];
+
+  if (uploadedBy) conditions.push(eq(files.uploadedBy, uploadedBy));
+  if (pageId)     conditions.push(eq(files.pageId, pageId));
+
+  if (cursorParsed) {
+    conditions.push(
+      or(
+        lt(files.createdAt, cursorParsed.createdAt),
+        and(
+          eq(files.createdAt, cursorParsed.createdAt),
+          lt(files.id, cursorParsed.id)
+        )
+      )!
+    );
+  }
+
+  const rows = await db
+    .select()
+    .from(files)
+    .where(and(...conditions))
+    .orderBy(desc(files.createdAt), asc(files.id))
+    .limit(limit + 1);
+
+  const hasMore  = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const lastRow  = pageRows[pageRows.length - 1];
+  const nextCursor = hasMore && lastRow
+    ? encodeCursor(lastRow.createdAt, lastRow.id)
+    : null;
+
+  return c.json({
+    files:      pageRows,
+    nextCursor,
+    count:      pageRows.length,
+    hasMore,
+    query:      q,
   });
 });
 
