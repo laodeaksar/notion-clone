@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { z } from 'zod';
-import { API_GATEWAY_URL } from '$env/static/private';
+import { API_GATEWAY_URL } from '$env/dynamic/private';
 
 const paramsSchema = z.object({ id: z.string().min(1) });
 

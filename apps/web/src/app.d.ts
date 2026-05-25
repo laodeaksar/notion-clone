@@ -12,12 +12,12 @@ declare global {
   }
 }
 
-declare module '$env/static/public' {
+declare module '$env/dynamic/public' {
   export const PUBLIC_API_GATEWAY_URL: string;
   export const PUBLIC_HOCUSPOCUS_URL: string;
 }
 
-declare module '$env/static/private' {
+declare module '$env/dynamic/private' {
   export const API_GATEWAY_URL: string;
   export const JWT_SECRET: string;
 }

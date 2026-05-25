@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/static/private';
+import { API_GATEWAY_URL } from '$env/dynamic/private';
 
 export const load: PageServerLoad = ({ locals }) => {
   if (locals.user) throw redirect(302, '/');

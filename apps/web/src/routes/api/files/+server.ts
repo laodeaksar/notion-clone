@@ -1,4 +1,4 @@
-import { API_GATEWAY_URL, JWT_SECRET } from '$env/static/private';
+import { API_GATEWAY_URL, JWT_SECRET } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
 
 async function signServerJWT(secret: string): Promise<string> {

@@ -9,7 +9,7 @@
   import Image from '@tiptap/extension-image';
   import { HocuspocusProvider } from '@hocuspocus/provider';
   import * as Y from 'yjs';
-  import { PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
+  import { PUBLIC_HOCUSPOCUS_URL } from '$env/dynamic/public';
 
   export let data: any;
 

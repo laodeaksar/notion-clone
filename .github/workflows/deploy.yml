@@ -227,11 +227,6 @@ jobs:
       - name: Build web
         working-directory: apps/web
         run: pnpm build
-        env:
-          PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
-          PUBLIC_HOCUSPOCUS_URL: ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
-          API_GATEWAY_URL: ${{ vars.API_GATEWAY_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Deploy ke Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

@@ -60,7 +60,7 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `JWT_REFRESH_SECRET` | String acak panjang **berbeda** dari JWT_SECRET |
 | `R2_PUBLIC_URL` | URL publik bucket R2 (mis. `https://pub-xxx.r2.dev`) |
 
-#### Tab "Variables" — tambahkan (bukan secret, nilai boleh dilihat):
+#### Tab "Variables" — untuk Workers (api-gateway & services):
 
 | Nama Variable | Nilai |
 |---------------|-------|
@@ -68,13 +68,31 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `PAGE_SERVICE_URL` | `https://page-service.YOUR-SUBDOMAIN.workers.dev` |
 | `BLOCK_SERVICE_URL` | `https://block-service.YOUR-SUBDOMAIN.workers.dev` |
 | `FILE_SERVICE_URL` | `https://file-service.YOUR-SUBDOMAIN.workers.dev` |
-| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
-| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
-| `PUBLIC_HOCUSPOCUS_URL` | `wss://YOUR-HOCUSPOCUS-HOST` |
 
 > **Cara tahu subdomain:** Setelah deploy pertama berhasil, URL muncul di log GitHub Actions. Atau cek di Cloudflare dashboard → Workers.
 
 > **Catatan:** Deploy pertama, biarkan Variables kosong dulu. Setelah semua 4 service berhasil deploy dan URL-nya diketahui, baru isi Variables dan trigger ulang workflow (`workflow_dispatch`).
+
+---
+
+### Langkah 3b — Set Environment Variables di Cloudflare Pages
+
+Env vars untuk web frontend **dibaca saat runtime** dari Cloudflare Pages dashboard — bukan di-bake saat build. Artinya kamu bisa ganti URL kapan saja **tanpa perlu push ulang kode atau rebuild**.
+
+1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **notion-web**
+2. Tab **Settings** → **Environment variables** → **Add variables**
+3. Pilih environment **Production** (dan **Preview** jika ingin staging)
+
+Tambahkan variabel berikut:
+
+| Nama Variable | Nilai | Tipe |
+|---------------|-------|------|
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` | Plain text |
+| `PUBLIC_HOCUSPOCUS_URL` | `wss://YOUR-HOCUSPOCUS-HOST` | Plain text |
+| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` | Plain text |
+| `JWT_SECRET` | *(sama dengan JWT_SECRET di Workers)* | **Secret** |
+
+4. Klik **Save**
 
 ---
 
