@@ -22,6 +22,36 @@ servers:
   - url: http://localhost:8080
     description: Local dev (Bun)
 
+tags:
+  - name: System
+    description: Health checks, metrics, rate limit status, and API documentation.
+  - name: Auth
+    description: |
+      Register, login, and inspect the current user session.
+      Successful login sets an `HttpOnly` cookie (`token`) so browser clients
+      are authenticated automatically on subsequent requests.
+  - name: Pages
+    description: Create and manage pages (the top-level document hierarchy).
+  - name: Blocks
+    description: |
+      Manage content blocks within a page.
+      Blocks are the individual units of content (paragraphs, headings, images, etc.)
+      that make up a page's body.
+  - name: Files
+    description: |
+      Upload and manage files stored in Cloudflare R2.
+
+      All `GET /files*` and `DELETE/PATCH /files/{id}` endpoints query the
+      database directly — faster and richer than listing from R2 object storage.
+
+      **File ID note:** the `{id}` path parameter is the R2 object key and may
+      contain slashes (e.g. `uploads/abc.png`). URL-encode slashes as `%2F`
+      when calling from a client: `/files/uploads%2Fabc.png`.
+
+      **Signed URLs:** use `GET /files/{id}/url` to issue a short-lived
+      HMAC-signed download link that can be shared without requiring
+      authentication on the recipient side.
+
 # ─── Reusable components ──────────────────────────────────────────────────────
 components:
   securitySchemes:
