@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { vValidator } from '@hono/valibot-validator';
+import * as v from 'valibot';
 import { UploadInputSchema } from '../types/file.types';
 import { createFileService } from '../services/file.service';
 import { authMiddleware } from '../middleware/auth';
@@ -23,10 +23,29 @@ export const fileRoutes = new Hono<HonoEnv>()
     }
   })
 
-  .post('/', vValidator('json', UploadInputSchema), async (c) => {
+  .post('/', async (c) => {
     const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
+    const contentType = c.req.header('Content-Type') ?? '';
+
     try {
-      const result = await svc.upload(c.req.valid('json'));
+      if (contentType.includes('multipart/form-data')) {
+        const form = await c.req.formData();
+        const file = form.get('file');
+        if (!file || !(file instanceof File)) {
+          return c.json({ error: 'Missing "file" field in multipart body' }, 400);
+        }
+        const folder = form.get('folder')?.toString() ?? undefined;
+        const filename = form.get('filename')?.toString() ?? undefined;
+        const result = await svc.uploadFile(file, folder, filename);
+        return c.json(result);
+      }
+
+      const body = await c.req.json().catch(() => null);
+      const parsed = v.safeParse(UploadInputSchema, body);
+      if (!parsed.success) {
+        return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
+      }
+      const result = await svc.upload(parsed.output);
       return c.json(result);
     } catch (err: any) {
       return c.json({ error: err.message ?? 'Upload failed' }, 400);

@@ -50,6 +50,22 @@ paths:
       requestBody:
         required: true
         content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The actual file to upload
+                filename:
+                  type: string
+                  description: Override the stored filename / R2 key suffix
+                folder:
+                  type: string
+                  description: Folder prefix inside the bucket (defaults to "notion-clone")
           application/json:
             schema:
               type: object

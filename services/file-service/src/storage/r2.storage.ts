@@ -23,7 +23,6 @@ export async function uploadToR2(
 ): Promise<UploadResult> {
   const folder = input.folder ?? defaultFolder;
   const key = generateKey(folder, input.filename);
-
   const buffer = base64ToArrayBuffer(input.data);
 
   await bucket.put(key, buffer, {
@@ -31,12 +30,27 @@ export async function uploadToR2(
   });
 
   const url = `${publicUrl.replace(/\/$/, '')}/${key}`;
+  return { url, publicId: key, provider: 'r2' };
+}
 
-  return {
-    url,
-    publicId: key,
-    provider: 'r2'
-  };
+export async function uploadFileToR2(
+  file: File,
+  bucket: R2Bucket,
+  publicUrl: string,
+  defaultFolder: string,
+  folder?: string,
+  filename?: string
+): Promise<UploadResult> {
+  const resolvedFolder = folder ?? defaultFolder;
+  const resolvedName = filename ?? file.name ?? crypto.randomUUID();
+  const key = generateKey(resolvedFolder, resolvedName);
+
+  await bucket.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type || 'application/octet-stream' }
+  });
+
+  const url = `${publicUrl.replace(/\/$/, '')}/${key}`;
+  return { url, publicId: key, provider: 'r2' };
 }
 
 export async function headFromR2(
