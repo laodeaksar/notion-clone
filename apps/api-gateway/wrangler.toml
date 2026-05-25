@@ -12,20 +12,23 @@ compatibility_flags = ["nodejs_compat"]
 #   1. Login ke Cloudflare:
 #        pnpm exec wrangler login
 #
-#   2. Buat KV namespace untuk rate limiting:
-#        pnpm exec wrangler kv namespace create RATE_LIMIT_KV
-#      → Salin "id" dari output, tempel ke [[kv_namespaces]] di bawah.
-#
-#   3. Simpan JWT secret (jangan ditulis di file ini):
+#   2. Simpan secrets (jangan ditulis di file ini):
 #        pnpm exec wrangler secret put JWT_SECRET
+#        pnpm exec wrangler secret put DATABASE_URL
+#        pnpm exec wrangler secret put UPSTASH_REDIS_REST_URL
+#        pnpm exec wrangler secret put UPSTASH_REDIS_REST_TOKEN
 #
-#   4. Edit bagian [vars] di bawah — isi URL publik microservices kamu.
+#      Dapatkan UPSTASH_REDIS_REST_URL dan UPSTASH_REDIS_REST_TOKEN dari:
+#        https://console.upstash.com → buat database Redis baru → salin REST URL & Token
 #
-#   5. Deploy:
+#   3. Edit bagian [vars] di bawah — isi URL publik microservices kamu.
+#
+#   4. Deploy:
 #        pnpm exec wrangler deploy
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
+<<<<<<< HEAD
 # ── KV Namespace untuk Rate Limiting ──────────────────────────────────────────
 # Jalankan: pnpm exec wrangler kv namespace create RATE_LIMIT_KV
 # Lalu tempel id-nya di bawah (ganti "GANTI-DENGAN-ID-DARI-WRANGLER").
@@ -35,10 +38,11 @@ id      = "f6d12a7d5d6d426e8a9b82e390bc0db4"
 
 
 # ── Environment Variables ──────────────────────────────────────────────────────
+=======
+# ── Environment Variables ─────────────────────────────────────────────────────
+>>>>>>> 0b36300 (Migrate rate limiting from KV to Upstash Redis)
 # Cloudflare Workers tidak bisa menjangkau `localhost`.
 # Ganti nilai di bawah dengan URL publik dari setiap microservice.
-# Contoh jika semua microservice di-deploy di Replit:
-#   AUTH_SERVICE_URL = "https://nama-replit-kamu.replit.app/auth"
 [vars]
 PAGE_SERVICE_URL  = "https://page.laodeaksar.eu.org"
 AUTH_SERVICE_URL  = "https://auth.laodeaksar.eu.org"
@@ -50,14 +54,14 @@ FILE_SERVICE_URL  = "https://file.laodeaksar.eu.org"
 #   Production (Cloudflare):
 #     pnpm exec wrangler secret put JWT_SECRET
 #     pnpm exec wrangler secret put DATABASE_URL
+#     pnpm exec wrangler secret put UPSTASH_REDIS_REST_URL
+#     pnpm exec wrangler secret put UPSTASH_REDIS_REST_TOKEN
 #
 #   Local dev (.dev.vars — sudah di-gitignore):
 #     Salin apps/api-gateway/.dev.vars.example → .dev.vars lalu isi nilainya.
+#     Tanpa UPSTASH_REDIS_REST_URL/TOKEN, rate limiting otomatis pakai in-memory fallback.
 
 # ── Module Rules ──────────────────────────────────────────────────────────────
-# Memungkinkan wrangler mem-bundle openapi.yaml sebagai Text module saat deploy.
-# Dengan ini, import statis seperti `import yaml from '../openapi.yaml'`
-# akan bekerja di Workers (file dibundel sebagai string saat build time).
 [[rules]]
 type        = "Text"
 globs       = ["**/*.yaml"]

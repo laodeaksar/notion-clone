@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, HonoEnv } from '../types/gateway.types';
 import { openapiSpec } from '../lib/openapi';
 import { gatewayMetrics } from '../middleware/metrics';
-import { peekRateLimit } from '../middleware/rate-limit';
+import { createRateLimiter } from '../middleware/rate-limit';
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW } from '../config';
 
 export const docsRoutes = new Hono<HonoEnv>();
@@ -84,8 +84,7 @@ docsRoutes.get('/rate-limit/status', async (c) => {
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
     'unknown';
 
-  const kv = (c.env as Partial<Bindings>)?.RATE_LIMIT_KV;
-  const { used, remaining, resetAt } = await peekRateLimit(ip, kv);
+  const { used, remaining, resetAt } = await createRateLimiter(c.env as Partial<Bindings>).peek(ip);
   const now = Math.ceil(Date.now() / 1000);
 
   return c.json({

@@ -3,13 +3,14 @@ import * as v from 'valibot';
 // ─── Cloudflare / Bun Bindings ────────────────────────────────────────────────
 
 export type Bindings = {
-  JWT_SECRET: string;
-  DATABASE_URL: string;
-  PAGE_SERVICE_URL: string;
-  AUTH_SERVICE_URL: string;
-  BLOCK_SERVICE_URL: string;
-  FILE_SERVICE_URL: string;
-  RATE_LIMIT_KV: KVNamespace;
+  JWT_SECRET:               string;
+  DATABASE_URL:             string;
+  PAGE_SERVICE_URL:         string;
+  AUTH_SERVICE_URL:         string;
+  BLOCK_SERVICE_URL:        string;
+  FILE_SERVICE_URL:         string;
+  UPSTASH_REDIS_REST_URL?:   string;
+  UPSTASH_REDIS_REST_TOKEN?: string;
 };
 
 // ─── Hono Context Variables (set by middleware, read by handlers) ─────────────
@@ -26,8 +27,6 @@ export type HonoEnv = {
 };
 
 // ─── Rate Limit ───────────────────────────────────────────────────────────────
-
-export type RateLimitEntry = { count: number; until: number };
 
 export type RateLimitResult = {
   allowed: boolean;
