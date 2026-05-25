@@ -1,9 +1,7 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    "lib": ["DOM", "ES2022"],
-    "types": ["svelte", "@sveltejs/kit"]
-  },
-  "include": ["src"],
-  "exclude": ["src/**/*.tsx", "src/routeTree.gen.ts", "src/router.tsx"]
+    "strict": true,
+    "skipLibCheck": true
+  }
 }
