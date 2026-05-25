@@ -9,7 +9,7 @@
   import Image from '@tiptap/extension-image';
   import { HocuspocusProvider } from '@hocuspocus/provider';
   import * as Y from 'yjs';
-  import { PUBLIC_API_GATEWAY_URL, PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
+  import { PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
 
   export let data: any;
   let editorContainer: HTMLDivElement | null = null;
@@ -43,8 +43,13 @@
     const charBefore = state.doc.textBetween(Math.max(0, from - 1), from, undefined, '\uFFFC');
     showSlashMenu = charBefore === '/';
     if (showSlashMenu && editorContainer) {
-      const rect = editorContainer.getBoundingClientRect();
-      menuPosition = { top: rect.top + 40, left: rect.left + 16 };
+      const view = editor.view;
+      const coords = view.coordsAtPos(from);
+      const containerRect = editorContainer.getBoundingClientRect();
+      menuPosition = {
+        top:  coords.bottom - containerRect.top + 4,
+        left: coords.left   - containerRect.left
+      };
     }
   };
 
@@ -78,19 +83,27 @@
 
   onMount(() => {
     const ydoc = new Y.Doc();
-    provider = new HocuspocusProvider({ url: PUBLIC_HOCUSPOCUS_URL as any, document: ydoc, name: data.page?.id || 'page' });
+    provider = new HocuspocusProvider({
+      url:      PUBLIC_HOCUSPOCUS_URL as any,
+      document: ydoc,
+      name:     data.page?.id || 'page'
+    });
+
     editor = new Editor({
-      element: editorContainer as HTMLElement,
+      element:    editorContainer as HTMLElement,
       extensions: [
-        StarterKit,
+        StarterKit.configure({ history: false }),
         Placeholder.configure({ placeholder: 'Start writing...' }),
         Link,
         Image,
         Collaboration.configure({ document: ydoc.get('prosemirror', Y.XmlFragment) }),
-        CollaborationCursor.configure({ provider, user: { name: data.page?.title || 'Anonymous', color: '#7C3AED' } })
+        CollaborationCursor.configure({
+          provider,
+          user: { name: data.page?.title || 'Anonymous', color: '#7C3AED' }
+        })
       ],
-      content: data.page?.content ?? '<p></p>',
-      onUpdate: updateSlashMenu
+      onUpdate:          updateSlashMenu,
+      onSelectionUpdate: updateSlashMenu
     });
   });
 
@@ -104,12 +117,16 @@
   <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
   <input type="file" accept="image/*" bind:this={fileInput} class="hidden" on:change={handleFileChange} />
   {#if showSlashMenu}
-    <div class="absolute z-20 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg" style="top: {menuPosition.top}px; left: {menuPosition.left}px;">
+    <div
+      class="absolute z-20 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
+      style="top: {menuPosition.top}px; left: {menuPosition.left}px;"
+    >
       {#each slashItems as item, index}
         <button
           type="button"
           class="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 {activeIndex === index ? 'bg-slate-100' : ''}"
-          on:click={() => insertSlashCommand(item)}>
+          on:click={() => insertSlashCommand(item)}
+        >
           {item.label}
         </button>
       {/each}
