@@ -4,6 +4,45 @@ info:
   version: 0.2.0
 paths:
   /upload:
+    get:
+      summary: List files in R2 with optional folder filtering and cursor pagination
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: folder
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by folder prefix (e.g. "notion-clone")
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pagination cursor returned from a previous response
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of items to return
+      responses:
+        '200':
+          description: Paginated list of files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResult'
+        '400':
+          description: List failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
       summary: Upload a file to R2
       security:
@@ -101,6 +140,41 @@ components:
         deleted:
           type: boolean
           enum: [true]
+
+    FileListItem:
+      type: object
+      properties:
+        publicId:
+          type: string
+          description: R2 object key
+        url:
+          type: string
+          description: Public URL of the file
+        size:
+          type: integer
+          description: File size in bytes
+        uploadedAt:
+          type: string
+          format: date-time
+
+    ListResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileListItem'
+        folder:
+          type: string
+          nullable: true
+          description: Folder prefix used to filter results
+        truncated:
+          type: boolean
+          description: Whether more items are available
+        cursor:
+          type: string
+          nullable: true
+          description: Pass this value as the `cursor` query param to fetch the next page
 
     Error:
       type: object

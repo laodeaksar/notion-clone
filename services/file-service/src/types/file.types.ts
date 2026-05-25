@@ -19,7 +19,22 @@ export type DeleteResult = {
   deleted: true;
 };
 
+export type FileListItem = {
+  publicId: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+};
+
+export type ListResult = {
+  items: FileListItem[];
+  folder: string | null;
+  truncated: boolean;
+  cursor: string | null;
+};
+
 export interface StorageProvider {
   upload(input: UploadInput, bucket: R2Bucket, publicUrl: string, folder: string): Promise<UploadResult>;
   delete(publicId: string, bucket: R2Bucket): Promise<DeleteResult>;
+  list(bucket: R2Bucket, publicUrl: string, folder?: string, cursor?: string, limit?: number): Promise<ListResult>;
 }

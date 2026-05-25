@@ -9,6 +9,20 @@ export const fileRoutes = new Hono<HonoEnv>()
 
   .use('*', authMiddleware)
 
+  .get('/', async (c) => {
+    const folder = c.req.query('folder') ?? undefined;
+    const cursor = c.req.query('cursor') ?? undefined;
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 100, 1), 1000) : 100;
+    const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
+    try {
+      const result = await svc.list(folder, cursor, limit);
+      return c.json(result);
+    } catch (err: any) {
+      return c.json({ error: err.message ?? 'List failed' }, 400);
+    }
+  })
+
   .post('/', vValidator('json', UploadInputSchema), async (c) => {
     const svc = createFileService(c.env.R2_BUCKET, c.env.R2_PUBLIC_URL);
     try {

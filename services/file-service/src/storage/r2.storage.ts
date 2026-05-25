@@ -39,6 +39,34 @@ export async function uploadToR2(
   };
 }
 
+export async function listFromR2(
+  bucket: R2Bucket,
+  publicUrl: string,
+  folder?: string,
+  cursor?: string,
+  limit: number = 100
+): Promise<{ items: { publicId: string; url: string; size: number; uploadedAt: string }[]; truncated: boolean; cursor: string | null }> {
+  const base = publicUrl.replace(/\/$/, '');
+  const opts: R2ListOptions = { limit };
+  if (folder) opts.prefix = `${folder}/`;
+  if (cursor) opts.cursor = cursor;
+
+  const listed = await bucket.list(opts);
+
+  const items = listed.objects.map((obj) => ({
+    publicId: obj.key,
+    url: `${base}/${obj.key}`,
+    size: obj.size,
+    uploadedAt: obj.uploaded.toISOString()
+  }));
+
+  return {
+    items,
+    truncated: listed.truncated,
+    cursor: listed.truncated ? (listed as any).cursor ?? null : null
+  };
+}
+
 export async function deleteFromR2(publicId: string, bucket: R2Bucket): Promise<void> {
   const obj = await bucket.head(publicId);
   if (!obj) {
