@@ -39,10 +39,10 @@ id      = "la_ode_aksar"
 # Contoh jika semua microservice di-deploy di Replit:
 #   AUTH_SERVICE_URL = "https://nama-replit-kamu.replit.app/auth"
 [vars]
-PAGE_SERVICE_URL  = "https://GANTI-DENGAN-URL-PAGE-SERVICE"
-AUTH_SERVICE_URL  = "https://GANTI-DENGAN-URL-AUTH-SERVICE"
-BLOCK_SERVICE_URL = "https://GANTI-DENGAN-URL-BLOCK-SERVICE"
-FILE_SERVICE_URL  = "https://GANTI-DENGAN-URL-FILE-SERVICE"
+PAGE_SERVICE_URL  = "https://page.laodeaksar.eu.org"
+AUTH_SERVICE_URL  = "https://auth.laodeaksar.eu.org"
+BLOCK_SERVICE_URL = "https://block.laodeaksar.eu.org"
+FILE_SERVICE_URL  = "https://file.laodeaksar.eu.org"
 
 # Secrets JANGAN diisi di sini — gunakan wrangler secret atau .dev.vars:
 #
