@@ -32,7 +32,7 @@ export const blockRoutes = new Hono<HonoEnv>()
     const svc = createBlockService(db);
     try {
       const block = await svc.createBlock(c.req.valid('json'));
-      return c.json({ status: 'created', block }, 201);
+      return c.json({ block }, 201);
     } catch (err: any) {
       return c.json({ error: err.message ?? 'Invalid input' }, 400);
     }

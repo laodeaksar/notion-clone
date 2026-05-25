@@ -1,15 +1,4 @@
-export type PageEvent =
-  | { type: 'page.created'; payload: { pageId: string; parentId?: string | null } }
-  | { type: 'page.updated'; payload: { pageId: string } }
-  | { type: 'page.deleted'; payload: { pageId: string } };
+import { createPublisher } from '@workspace/shared';
+import type { PageEvent } from '@workspace/shared';
 
-/**
- * CF Workers-compatible publisher.
- * Logs events to console. Extend with CF Queues binding when needed:
- *   await env.PAGE_QUEUE.send(event)
- */
-export const publisher = {
-  async publish(event: PageEvent): Promise<void> {
-    console.log('[page-events]', JSON.stringify(event));
-  }
-};
+export const publisher = createPublisher<PageEvent>('page-events');
