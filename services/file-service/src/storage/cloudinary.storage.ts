@@ -1,10 +1,8 @@
 import type {
   UploadInput,
   UploadResult,
-  DeleteResult,
   ListResult,
   FileListItem,
-  MoveInput,
   MoveResult
 } from '../types/file.types';
 
@@ -228,41 +226,66 @@ export async function listFromCloudinary(
   cursor?: string,
   limit: number = 100
 ): Promise<{ items: FileListItem[]; truncated: boolean; cursor: string | null }> {
-  const params = new URLSearchParams({ max_results: limit.toString() });
-  if (folder) params.set('prefix', folder);
-  if (cursor) params.set('next_cursor', cursor);
+  const resourceTypes = ['image', 'video', 'raw'] as const;
 
-  const res = await fetch(
-    `${apiBase(cloudName)}/resources?${params}`,
-    { headers: { Authorization: basicAuth(apiKey, apiSecret) } }
-  );
+  type CloudinaryResource = {
+    public_id:  string;
+    secure_url: string;
+    bytes:      number;
+    created_at: string;
+  };
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Cloudinary list failed: ${text}`);
-  }
-
-  const data = await res.json() as {
-    resources: Array<{
-      public_id:  string;
-      secure_url: string;
-      bytes:      number;
-      created_at: string;
-    }>;
+  type CloudinaryResourcesResponse = {
+    resources:   CloudinaryResource[];
     next_cursor?: string;
   };
 
-  const items: FileListItem[] = data.resources.map(r => ({
-    publicId:   r.public_id,
-    url:        r.secure_url,
-    size:       r.bytes,
-    uploadedAt: r.created_at,
-  }));
+  const perType = Math.ceil(limit / resourceTypes.length);
+  const results: FileListItem[] = [];
+  let nextCursor: string | null = null;
+  let truncated = false;
+
+  await Promise.all(
+    resourceTypes.map(async (resType) => {
+      const params = new URLSearchParams({ max_results: perType.toString() });
+      if (folder) params.set('prefix', folder);
+      if (cursor) params.set('next_cursor', cursor);
+
+      const res = await fetch(
+        `${apiBase(cloudName)}/resources/${resType}?${params}`,
+        { headers: { Authorization: basicAuth(apiKey, apiSecret) } }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Cloudinary list (${resType}) failed: ${text}`);
+      }
+
+      const data = await res.json() as CloudinaryResourcesResponse;
+
+      for (const r of data.resources) {
+        results.push({
+          publicId:   r.public_id,
+          url:        r.secure_url,
+          size:       r.bytes,
+          uploadedAt: r.created_at,
+        });
+      }
+
+      if (data.next_cursor) {
+        truncated  = true;
+        nextCursor = data.next_cursor;
+      }
+    })
+  );
+
+  results.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  const sliced = results.slice(0, limit);
 
   return {
-    items,
-    truncated: !!data.next_cursor,
-    cursor:    data.next_cursor ?? null,
+    items:     sliced,
+    truncated: truncated || sliced.length < results.length,
+    cursor:    nextCursor,
   };
 }
 

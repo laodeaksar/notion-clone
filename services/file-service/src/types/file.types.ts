@@ -72,16 +72,9 @@ export type FileRecord = {
   size:        number;
   contentType: string | null;
   folder:      string | null;
-  provider:    string;
+  provider:    'cloudinary';
   uploadedBy:  string | null;
   pageId:      string | null;
   createdAt:   Date;
   updatedAt:   Date;
 };
-
-export interface StorageProvider {
-  upload(input: UploadInput, cloudName: string, apiKey: string, apiSecret: string, folder: string): Promise<UploadResult>;
-  delete(publicId: string, cloudName: string, apiKey: string, apiSecret: string, contentType?: string | null): Promise<DeleteResult>;
-  list(cloudName: string, apiKey: string, apiSecret: string, folder?: string, cursor?: string, limit?: number): Promise<ListResult>;
-  move(oldPublicId: string, input: MoveInput, cloudName: string, apiKey: string, apiSecret: string, contentType?: string | null): Promise<MoveResult>;
-}

@@ -1,11 +1,11 @@
 openapi: 3.0.3
 info:
   title: File Service
-  version: 0.2.0
+  version: 0.3.0
 paths:
   /upload:
     get:
-      summary: List files in R2 with optional folder filtering and cursor pagination
+      summary: List files in Cloudinary with optional folder filtering and cursor pagination
       security:
         - bearerAuth: []
       parameters:
@@ -44,7 +44,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     post:
-      summary: Upload a file to R2
+      summary: Upload a file to Cloudinary
       security:
         - bearerAuth: []
       requestBody:
@@ -62,10 +62,10 @@ paths:
                   description: The actual file to upload
                 filename:
                   type: string
-                  description: Override the stored filename / R2 key suffix
+                  description: Override the stored filename / Cloudinary public ID suffix
                 folder:
                   type: string
-                  description: Folder prefix inside the bucket (defaults to "notion-clone")
+                  description: Folder prefix in Cloudinary (defaults to "notion-clone")
           application/json:
             schema:
               type: object
@@ -77,10 +77,10 @@ paths:
                   description: Base64-encoded file content (with or without data URI prefix)
                 filename:
                   type: string
-                  description: Optional filename / R2 object key suffix
+                  description: Optional filename / Cloudinary public ID suffix
                 folder:
                   type: string
-                  description: Optional folder prefix inside the bucket (defaults to "notion-clone")
+                  description: Optional folder prefix in Cloudinary (defaults to "notion-clone")
       responses:
         '200':
           description: Uploaded file metadata
@@ -97,7 +97,7 @@ paths:
 
   /upload/{publicId}:
     get:
-      summary: Get metadata for a single file by its R2 key
+      summary: Get metadata for a single file by its Cloudinary public ID
       security:
         - bearerAuth: []
       parameters:
@@ -106,16 +106,16 @@ paths:
           required: true
           schema:
             type: string
-          description: The full R2 object key (e.g. "notion-clone/my-file.png")
+          description: The full Cloudinary public ID (e.g. "notion-clone/my-file")
       responses:
         '200':
-          description: File metadata (no object body downloaded)
+          description: File metadata
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileMetadata'
         '404':
-          description: Object not found in R2
+          description: Object not found in Cloudinary
           content:
             application/json:
               schema:
@@ -127,7 +127,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     patch:
-      summary: Rename or move a file to a new R2 key
+      summary: Rename or move a file to a new Cloudinary public ID
       security:
         - bearerAuth: []
       parameters:
@@ -136,7 +136,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Current R2 object key
+          description: Current Cloudinary public ID
       requestBody:
         required: true
         content:
@@ -146,7 +146,7 @@ paths:
               properties:
                 newKey:
                   type: string
-                  description: Full replacement key — takes precedence over folder/filename (e.g. "archive/photo.png")
+                  description: Full replacement public ID — takes precedence over folder/filename (e.g. "archive/photo")
                 folder:
                   type: string
                   description: Change the folder prefix, keep the existing filename
@@ -162,7 +162,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MoveResult'
         '404':
-          description: Source object not found in R2
+          description: Source object not found in Cloudinary
           content:
             application/json:
               schema:
@@ -174,7 +174,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     delete:
-      summary: Delete a file from R2 by its publicId key
+      summary: Delete a file from Cloudinary by its public ID
       security:
         - bearerAuth: []
       parameters:
@@ -183,7 +183,7 @@ paths:
           required: true
           schema:
             type: string
-          description: The full R2 object key (e.g. "notion-clone/my-file.png")
+          description: The full Cloudinary public ID (e.g. "notion-clone/my-file")
       responses:
         '200':
           description: File deleted successfully
@@ -192,7 +192,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeleteResult'
         '404':
-          description: Object not found in R2
+          description: Object not found in Cloudinary
           content:
             application/json:
               schema:
@@ -214,19 +214,30 @@ components:
   schemas:
     UploadResult:
       type: object
+      required: [url, publicId, provider, size, name, contentType]
       properties:
         url:
           type: string
           description: Public URL of the uploaded file
         publicId:
           type: string
-          description: R2 object key
+          description: Cloudinary public ID
         provider:
           type: string
-          enum: [r2]
+          enum: [cloudinary]
+        size:
+          type: integer
+          description: File size in bytes
+        name:
+          type: string
+          description: Original filename
+        contentType:
+          type: string
+          description: MIME type of the uploaded file
 
     DeleteResult:
       type: object
+      required: [publicId, deleted]
       properties:
         publicId:
           type: string
@@ -236,26 +247,28 @@ components:
 
     MoveResult:
       type: object
+      required: [oldPublicId, publicId, url, provider]
       properties:
         oldPublicId:
           type: string
-          description: The original R2 object key before the move
+          description: The original Cloudinary public ID before the move
         publicId:
           type: string
-          description: The new R2 object key after the move
+          description: The new Cloudinary public ID after the move
         url:
           type: string
           description: Public URL of the file at its new location
         provider:
           type: string
-          enum: [r2]
+          enum: [cloudinary]
 
     FileListItem:
       type: object
+      required: [publicId, url, size, uploadedAt]
       properties:
         publicId:
           type: string
-          description: R2 object key
+          description: Cloudinary public ID
         url:
           type: string
           description: Public URL of the file
@@ -268,10 +281,11 @@ components:
 
     FileMetadata:
       type: object
+      required: [publicId, url, size, uploadedAt]
       properties:
         publicId:
           type: string
-          description: R2 object key
+          description: Cloudinary public ID
         url:
           type: string
           description: Public URL of the file
@@ -288,6 +302,7 @@ components:
 
     ListResult:
       type: object
+      required: [items, folder, truncated, cursor]
       properties:
         items:
           type: array
@@ -307,6 +322,7 @@ components:
 
     Error:
       type: object
+      required: [error]
       properties:
         error:
           type: string

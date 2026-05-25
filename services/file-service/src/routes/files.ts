@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import * as v from 'valibot';
 import { UploadInputSchema, MoveInputSchema } from '../types/file.types';
 import { createFileService } from '../services/file.service';
@@ -6,25 +7,37 @@ import { createDb } from '@workspace/db';
 import { authMiddleware } from '../middleware/auth';
 import type { HonoEnv } from '../types/env';
 
-export const fileRoutes = new Hono<HonoEnv>()
+type ServiceEnv = HonoEnv & {
+  Variables: HonoEnv['Variables'] & {
+    svc: ReturnType<typeof createFileService>;
+  };
+};
+
+const serviceMiddleware = createMiddleware<ServiceEnv>(async (c, next) => {
+  const db  = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
+  const svc = createFileService(
+    c.env.CLOUDINARY_CLOUD_NAME,
+    c.env.CLOUDINARY_API_KEY,
+    c.env.CLOUDINARY_API_SECRET,
+    db,
+    c.env.EVENTS_QUEUE
+  );
+  c.set('svc', svc);
+  await next();
+});
+
+export const fileRoutes = new Hono<ServiceEnv>()
 
   .use('*', authMiddleware)
+  .use('*', serviceMiddleware)
 
   .get('/', async (c) => {
     const folder   = c.req.query('folder') ?? undefined;
     const cursor   = c.req.query('cursor') ?? undefined;
     const limitRaw = c.req.query('limit');
     const limit    = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 100, 1), 1000) : 100;
-    const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(
-      c.env.CLOUDINARY_CLOUD_NAME,
-      c.env.CLOUDINARY_API_KEY,
-      c.env.CLOUDINARY_API_SECRET,
-      db,
-      c.env.EVENTS_QUEUE
-    );
     try {
-      const result = await svc.list(folder, cursor, limit);
+      const result = await c.get('svc').list(folder, cursor, limit);
       return c.json(result);
     } catch (err: any) {
       return c.json({ error: err.message ?? 'List failed' }, 400);
@@ -32,27 +45,18 @@ export const fileRoutes = new Hono<HonoEnv>()
   })
 
   .post('/', async (c) => {
-    const db          = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc         = createFileService(
-      c.env.CLOUDINARY_CLOUD_NAME,
-      c.env.CLOUDINARY_API_KEY,
-      c.env.CLOUDINARY_API_SECRET,
-      db,
-      c.env.EVENTS_QUEUE
-    );
     const contentType = c.req.header('Content-Type') ?? '';
     const uploadedBy  = c.get('userId');
-
     try {
       if (contentType.includes('multipart/form-data')) {
         const form = await c.req.formData();
         const file = form.get('file');
-        if (!file || !(file instanceof File)) {
+        if (!file || typeof file === 'string') {
           return c.json({ error: 'Missing "file" field in multipart body' }, 400);
         }
         const folder   = form.get('folder')?.toString() ?? undefined;
         const filename = form.get('filename')?.toString() ?? undefined;
-        const result   = await svc.uploadFile(file, folder, filename, uploadedBy);
+        const result   = await c.get('svc').uploadFile(file, folder, filename, uploadedBy);
         return c.json(result);
       }
 
@@ -61,7 +65,7 @@ export const fileRoutes = new Hono<HonoEnv>()
       if (!parsed.success) {
         return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
       }
-      const result = await svc.upload(parsed.output, uploadedBy);
+      const result = await c.get('svc').upload(parsed.output, uploadedBy);
       return c.json(result);
     } catch (err: any) {
       return c.json({ error: err.message ?? 'Upload failed' }, 400);
@@ -70,16 +74,8 @@ export const fileRoutes = new Hono<HonoEnv>()
 
   .get('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
-    const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(
-      c.env.CLOUDINARY_CLOUD_NAME,
-      c.env.CLOUDINARY_API_KEY,
-      c.env.CLOUDINARY_API_SECRET,
-      db,
-      c.env.EVENTS_QUEUE
-    );
     try {
-      const result = await svc.head(publicId);
+      const result = await c.get('svc').head(publicId);
       return c.json(result);
     } catch (err: any) {
       const isNotFound = err.message?.includes('not found');
@@ -89,21 +85,13 @@ export const fileRoutes = new Hono<HonoEnv>()
 
   .patch('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
-    const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(
-      c.env.CLOUDINARY_CLOUD_NAME,
-      c.env.CLOUDINARY_API_KEY,
-      c.env.CLOUDINARY_API_SECRET,
-      db,
-      c.env.EVENTS_QUEUE
-    );
     try {
       const body   = await c.req.json().catch(() => null);
       const parsed = v.safeParse(MoveInputSchema, body);
       if (!parsed.success) {
         return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
       }
-      const result = await svc.move(publicId, parsed.output);
+      const result = await c.get('svc').move(publicId, parsed.output);
       return c.json(result);
     } catch (err: any) {
       const isNotFound = err.message?.includes('not found');
@@ -113,16 +101,8 @@ export const fileRoutes = new Hono<HonoEnv>()
 
   .delete('/:publicId{.+}', async (c) => {
     const publicId = c.req.param('publicId');
-    const db       = c.env.DATABASE_URL ? createDb(c.env.DATABASE_URL) : null;
-    const svc      = createFileService(
-      c.env.CLOUDINARY_CLOUD_NAME,
-      c.env.CLOUDINARY_API_KEY,
-      c.env.CLOUDINARY_API_SECRET,
-      db,
-      c.env.EVENTS_QUEUE
-    );
     try {
-      const result = await svc.delete(publicId);
+      const result = await c.get('svc').delete(publicId);
       return c.json(result);
     } catch (err: any) {
       const isNotFound = err.message?.includes('not found');

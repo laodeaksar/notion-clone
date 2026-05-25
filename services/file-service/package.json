@@ -9,7 +9,7 @@
     "build":  "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/valibot-validator": "^0.6.1",
+    "@workspace/db":     "workspace:*",
     "@workspace/shared": "workspace:*",
     "hono":              "^4.12.22",
     "valibot":           "^1.4.0"

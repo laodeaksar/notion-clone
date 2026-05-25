@@ -279,9 +279,9 @@ importers:
 
   services/file-service:
     dependencies:
-      '@hono/valibot-validator':
-        specifier: ^0.6.1
-        version: 0.6.1(hono@4.12.22)(valibot@1.4.0(typescript@5.9.3))
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared
