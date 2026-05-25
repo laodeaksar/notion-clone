@@ -1,25 +1,54 @@
 <script lang="ts">
   import FileUpload from '$lib/components/FileUpload.svelte';
+  import type { PageData } from './$types';
+  import type { GalleryFile } from './+page.server';
 
-  interface UploadedFile {
-    url:      string;
-    publicId: string;
-    name:     string;
-    addedAt:  Date;
+  export let data: PageData;
+
+  interface SessionFile extends GalleryFile {
+    isNew: true;
   }
 
-  let session:   UploadedFile[] = [];
-  let copiedId:  string | null  = null;
-  let deletingId: string | null = null;
-  let confirmId:  string | null = null;
+  let gallery:    GalleryFile[]   = data.files ?? [];
+  let truncated:  boolean          = data.truncated ?? false;
+  let cursor:     string | null    = data.cursor ?? null;
+  let loadError:  string | null    = data.error ?? null;
 
-  function onUploaded(e: CustomEvent<{ url: string; publicId: string; name: string }>) {
-    session = [{ ...e.detail, addedAt: new Date() }, ...session];
+  let newUploads: SessionFile[]    = [];
+  let copiedId:   string | null    = null;
+  let deletingId: string | null    = null;
+  let confirmId:  string | null    = null;
+  let loadingMore: boolean         = false;
+  let loadMoreError: string | null = null;
+
+  function nameFromPublicId(publicId: string): string {
+    const last = publicId.split('/').pop() ?? publicId;
+    return last.replace(/_[a-z0-9]{6,}$/i, '').replace(/_/g, ' ') || last;
   }
 
   function isImage(url: string): boolean {
     return /\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(url)
       || url.includes('/image/upload/');
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024)       return `${bytes} B`;
+    if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  }
+
+  function onUploaded(e: CustomEvent<{ url: string; publicId: string; name: string }>) {
+    const { url, publicId, name } = e.detail;
+    const fresh: SessionFile = {
+      publicId,
+      url,
+      name,
+      size:       0,
+      uploadedAt: new Date().toISOString(),
+      isNew:      true
+    };
+    newUploads = [fresh, ...newUploads];
+    gallery    = gallery.filter(f => f.publicId !== publicId);
   }
 
   async function copyUrl(url: string, id: string) {
@@ -28,24 +57,17 @@
     setTimeout(() => { copiedId = null; }, 2000);
   }
 
-  function requestDelete(publicId: string) {
-    confirmId = publicId;
-  }
-
-  function cancelDelete() {
-    confirmId = null;
-  }
+  function requestDelete(publicId: string) { confirmId  = publicId; }
+  function cancelDelete()                  { confirmId  = null; }
 
   async function confirmDelete(publicId: string) {
     confirmId  = null;
     deletingId = publicId;
-
     try {
-      const res = await fetch(`/api/files?publicId=${encodeURIComponent(publicId)}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`/api/files?publicId=${encodeURIComponent(publicId)}`, { method: 'DELETE' });
       if (res.ok) {
-        session = session.filter(f => f.publicId !== publicId);
+        newUploads = newUploads.filter(f => f.publicId !== publicId);
+        gallery    = gallery.filter(f => f.publicId !== publicId);
       } else {
         const err = await res.json().catch(() => ({ error: 'Delete failed' }));
         alert(err.error ?? 'Delete failed');
@@ -56,6 +78,45 @@
       deletingId = null;
     }
   }
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    loadingMore    = true;
+    loadMoreError  = null;
+    try {
+      const params = new URLSearchParams({ folder: 'notion-clone', limit: '50', cursor });
+      const res    = await fetch(`/api/files?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Load failed' }));
+        loadMoreError = err.error ?? 'Load failed';
+        return;
+      }
+      const data = await res.json() as {
+        items:     Array<{ publicId: string; url: string; size: number; uploadedAt: string }>;
+        truncated: boolean;
+        cursor:    string | null;
+      };
+      const more: GalleryFile[] = (data.items ?? [])
+        .filter(item => !newUploads.some(n => n.publicId === item.publicId))
+        .map(item => ({
+          publicId:   item.publicId,
+          url:        item.url,
+          size:       item.size,
+          name:       nameFromPublicId(item.publicId),
+          uploadedAt: item.uploadedAt
+        }));
+      gallery   = [...gallery, ...more];
+      truncated = data.truncated ?? false;
+      cursor    = data.cursor ?? null;
+    } catch {
+      loadMoreError = 'Network error — could not load more files';
+    } finally {
+      loadingMore = false;
+    }
+  }
+
+  $: allFiles = [...newUploads, ...gallery];
+  $: total    = allFiles.length;
 </script>
 
 <svelte:head>
@@ -91,24 +152,42 @@
       <FileUpload folder="notion-clone" on:uploaded={onUploaded} />
     </section>
 
-    <!-- Session uploads -->
-    {#if session.length > 0}
+    <!-- Load error banner -->
+    {#if loadError}
+      <div class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+        <span class="text-lg">⚠️</span>
+        <div>
+          <strong class="font-semibold">Could not load existing files:</strong>
+          {loadError} — files uploaded this session will still appear below.
+        </div>
+      </div>
+    {/if}
+
+    <!-- Gallery -->
+    {#if total > 0}
       <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-base font-semibold text-slate-800">
-            Uploaded this session
+            All Files
             <span class="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-              {session.length}
+              {total}{truncated ? '+' : ''}
             </span>
           </h2>
+          {#if newUploads.length > 0}
+            <span class="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+              {newUploads.length} new
+            </span>
+          {/if}
         </div>
 
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {#each session as file (file.publicId)}
-            {@const isDeleting = deletingId === file.publicId}
-            {@const isConfirming = confirmId === file.publicId}
+          {#each allFiles as file (file.publicId)}
+            {@const isDeleting   = deletingId === file.publicId}
+            {@const isConfirming = confirmId  === file.publicId}
+            {@const isNew        = newUploads.some(n => n.publicId === file.publicId)}
 
-            <div class="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50
+            <div class="group relative overflow-hidden rounded-xl border bg-slate-50 transition-shadow hover:shadow-md
+              {isNew ? 'border-violet-300 ring-1 ring-violet-200' : 'border-slate-200'}
               {isDeleting ? 'opacity-50 pointer-events-none' : ''}">
 
               <!-- Preview -->
@@ -126,12 +205,22 @@
                 {/if}
               </div>
 
-              <!-- Filename -->
-              <div class="p-2">
-                <p class="truncate text-xs font-medium text-slate-600">{file.name}</p>
+              <!-- Filename + size -->
+              <div class="px-2 py-1.5">
+                <p class="truncate text-xs font-medium text-slate-700" title={file.name}>{file.name}</p>
+                {#if file.size > 0}
+                  <p class="text-[10px] text-slate-400">{formatSize(file.size)}</p>
+                {/if}
               </div>
 
-              <!-- Deleting spinner overlay -->
+              <!-- New badge -->
+              {#if isNew}
+                <span class="absolute left-1.5 top-1.5 rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow">
+                  New
+                </span>
+              {/if}
+
+              <!-- Deleting spinner -->
               {#if isDeleting}
                 <div class="absolute inset-0 flex items-center justify-center bg-white/80">
                   <div class="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-red-500"></div>
@@ -192,14 +281,37 @@
             </div>
           {/each}
         </div>
+
+        <!-- Load more -->
+        {#if truncated}
+          <div class="mt-6 flex flex-col items-center gap-2">
+            {#if loadMoreError}
+              <p class="text-xs text-red-500">{loadMoreError}</p>
+            {/if}
+            <button
+              type="button"
+              disabled={loadingMore}
+              class="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              on:click={loadMore}
+            >
+              {#if loadingMore}
+                <span class="inline-flex items-center gap-2">
+                  <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-violet-500"></span>
+                  Loading…
+                </span>
+              {:else}
+                Load more
+              {/if}
+            </button>
+          </div>
+        {/if}
       </section>
-    {/if}
 
     <!-- Empty state -->
-    {#if session.length === 0}
+    {:else if !loadError}
       <div class="flex flex-col items-center gap-3 py-8 text-center text-slate-400">
         <span class="text-5xl">🗂️</span>
-        <p class="text-sm">Files you upload will appear here with a shareable Cloudinary URL.</p>
+        <p class="text-sm">No files yet — upload something above and it will appear here.</p>
       </div>
     {/if}
 

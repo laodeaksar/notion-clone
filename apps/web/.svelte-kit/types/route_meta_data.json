@@ -6,7 +6,9 @@
 	"/api/upload": [
 		"src/routes/api/upload/+server.ts"
 	],
-	"/files": [],
+	"/files": [
+		"src/routes/files/+page.server.ts"
+	],
 	"/page/[id]": [
 		"src/routes/page/[id]/+page.server.ts"
 	]
