@@ -125,6 +125,7 @@ declare module '$env/static/private' {
 	export const PNPM_SCRIPT_SRC_DIR: string;
 	export const npm_execpath: string;
 	export const REPLIT_PID2: string;
+	export const NODE_PATH: string;
 	export const PGHOST: string;
 	export const npm_package_json: string;
 	export const API_GATEWAY_URL: string;
@@ -322,6 +323,7 @@ declare module '$env/dynamic/private' {
 		PNPM_SCRIPT_SRC_DIR: string;
 		npm_execpath: string;
 		REPLIT_PID2: string;
+		NODE_PATH: string;
 		PGHOST: string;
 		npm_package_json: string;
 		API_GATEWAY_URL: string;
