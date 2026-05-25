@@ -144,6 +144,32 @@ fileRoutes.get('/files', requireAuth, async (c) => {
 });
 
 /**
+ * GET /files/*
+ *
+ * Returns a single file's full metadata from the database by its R2 key.
+ * Requires authentication; any authenticated user may read any file record.
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   404 — file not found in DB
+ *   503 — database not configured
+ */
+fileRoutes.get('/files/*', requireAuth, async (c) => {
+  const fileId = c.req.param('*');
+  if (!fileId) return c.json({ error: 'Missing file id' }, 400);
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(eq(files.id, fileId)).limit(1);
+  const file = rows[0] ?? null;
+
+  if (!file) return c.json({ error: 'File not found' }, 404);
+  return c.json(file);
+});
+
+/**
  * DELETE /files/*
  *
  * Deletes a file in two steps (atomic-ish):
