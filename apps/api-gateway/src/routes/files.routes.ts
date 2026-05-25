@@ -6,7 +6,17 @@ import { UploadBodySchema } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
-import { createDb, files, eq, and, lt, or, asc, desc, ilike } from '@workspace/db';
+import { createDb, files, eq, and, lt, or, asc, desc, ilike, inArray } from '@workspace/db';
+
+// ─── Bulk-delete schema ───────────────────────────────────────────────────────
+
+const BulkDeleteSchema = v.object({
+  ids: v.pipe(
+    v.array(v.pipe(v.string(), v.minLength(1))),
+    v.minLength(1,  'ids must contain at least one entry'),
+    v.maxLength(100, 'ids must contain at most 100 entries')
+  )
+});
 
 // ─── Patch schema ─────────────────────────────────────────────────────────────
 // All fields are optional; at least one must be provided.
@@ -593,6 +603,112 @@ fileRoutes.patch('/files/*', requireAuth, async (c) => {
     .returning();
 
   return c.json(updated ?? file);
+});
+
+/**
+ * POST /files/bulk-delete
+ *
+ * Deletes up to 100 files in a single request.
+ *
+ * Flow (fail-fast per file, not per batch):
+ *   1. Validate body — ids array must have 1–100 non-empty strings.
+ *   2. Fetch all matching DB records in one query (inArray).
+ *   3. Classify each requested id as: not-found | forbidden | owned.
+ *   4. Batch-delete all owned records from DB in one statement.
+ *   5. Fire parallel DELETE /upload/:id calls to the file-service (R2 + events).
+ *      Uses Promise.allSettled so a flaky R2 call doesn't abort the rest.
+ *   6. Return per-id results: { deleted[], failed[], deletedCount, failedCount }.
+ *
+ * Ownership rule: same as DELETE /files/* — only the uploader may delete;
+ * files with uploadedBy = null may be deleted by any authenticated user.
+ *
+ * Body:  { ids: string[] }   (1–100 entries)
+ *
+ * Errors:
+ *   400 — invalid / empty body
+ *   401 — not authenticated
+ *   503 — database not configured
+ */
+fileRoutes.post('/files/bulk-delete', requireAuth, async (c) => {
+  const body   = await c.req.json().catch(() => null);
+  const parsed = v.safeParse(BulkDeleteSchema, body);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid request body', issues: parsed.issues }, 400);
+  }
+
+  const dbUrl = getEnv(c, 'DATABASE_URL', '');
+  if (!dbUrl) return c.json({ error: 'Database not configured' }, 503);
+
+  const { ids }       = parsed.output;
+  const requesterId   = (c.var.jwtPayload as Record<string, unknown>).sub as string | undefined;
+  const fileServiceUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const authHeader    = c.req.header('authorization') ?? '';
+
+  // ── 1. Fetch all matching DB records in one round-trip ────────────────────
+  const db   = createDb(dbUrl);
+  const rows = await db.select().from(files).where(inArray(files.id, ids));
+  const found = new Map(rows.map((r) => [r.id, r]));
+
+  // ── 2. Classify each requested id ─────────────────────────────────────────
+  type FailEntry = { id: string; reason: string };
+
+  const ownedIds:   string[]    = [];
+  const failed:     FailEntry[] = [];
+
+  for (const id of ids) {
+    const file = found.get(id);
+    if (!file) {
+      failed.push({ id, reason: 'Not found' });
+      continue;
+    }
+    if (file.uploadedBy && file.uploadedBy !== requesterId) {
+      failed.push({ id, reason: 'Forbidden' });
+      continue;
+    }
+    ownedIds.push(id);
+  }
+
+  if (ownedIds.length === 0) {
+    return c.json({
+      deleted:      [],
+      failed,
+      deletedCount: 0,
+      failedCount:  failed.length,
+    });
+  }
+
+  // ── 3. Batch-delete DB records in one statement ───────────────────────────
+  await db.delete(files).where(inArray(files.id, ownedIds));
+
+  // ── 4. Fire parallel R2 removals (best-effort) ────────────────────────────
+  // DB records are already gone; R2 failures are logged but don't fail the
+  // response — a background sweep can clean up orphaned objects if needed.
+  const r2Results = await Promise.allSettled(
+    ownedIds.map((id) =>
+      proxyJson(fileServiceUrl, `/upload/${id}`, {
+        method:  'DELETE',
+        headers: { authorization: authHeader },
+      })
+    )
+  );
+
+  // Surface any R2 failures as warnings in the response
+  const r2Warnings: { id: string; warning: string }[] = [];
+  r2Results.forEach((result, idx) => {
+    if (result.status === 'rejected') {
+      r2Warnings.push({ id: ownedIds[idx], warning: 'R2 removal failed — DB record deleted' });
+    } else if (result.value.status >= 400) {
+      r2Warnings.push({ id: ownedIds[idx], warning: `R2 returned ${result.value.status} — DB record deleted` });
+    }
+  });
+
+  return c.json({
+    deleted:      ownedIds,
+    failed,
+    deletedCount: ownedIds.length,
+    failedCount:  failed.length,
+    ...(r2Warnings.length > 0 && { r2Warnings }),
+  });
 });
 
 /**
