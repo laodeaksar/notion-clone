@@ -1,0 +1,1383 @@
+openapi: 3.0.3
+info:
+  title: Notion Clone API Gateway
+  version: 0.4.0
+  description: |
+    Edge API gateway for the Notion Clone monorepo.
+    Proxies requests to internal microservices (auth, page, block, file).
+    File endpoints query the database directly for richer filtering and pagination.
+
+    **Rate Limiting**
+    Every response includes rate limit headers:
+    - `X-RateLimit-Limit` — max requests allowed per window
+    - `X-RateLimit-Remaining` — remaining requests in the current window
+    - `X-RateLimit-Reset` — Unix timestamp (seconds) when the window resets
+
+    When the limit is exceeded the gateway returns **429 Too Many Requests**.
+    Use `GET /rate-limit/status` to inspect your quota without consuming a slot.
+
+servers:
+  - url: http://localhost:8787
+    description: Local dev (wrangler dev)
+  - url: http://localhost:8080
+    description: Local dev (Bun)
+
+tags:
+  - name: System
+    description: Health checks, metrics, rate limit status, and API documentation.
+  - name: Auth
+    description: |
+      Register, login, and inspect the current user session.
+      Successful login sets an `HttpOnly` cookie (`token`) so browser clients
+      are authenticated automatically on subsequent requests.
+  - name: Pages
+    description: Create and manage pages (the top-level document hierarchy).
+  - name: Blocks
+    description: |
+      Manage content blocks within a page.
+      Blocks are the individual units of content (paragraphs, headings, images, etc.)
+      that make up a page's body.
+  - name: Files
+    description: |
+      Upload and manage files stored in Cloudflare R2.
+
+      All `GET /files*` and `DELETE/PATCH /files/{id}` endpoints query the
+      database directly — faster and richer than listing from R2 object storage.
+
+      **File ID note:** the `{id}` path parameter is the R2 object key and may
+      contain slashes (e.g. `uploads/abc.png`). URL-encode slashes as `%2F`
+      when calling from a client: `/files/uploads%2Fabc.png`.
+
+      **Signed URLs:** use `GET /files/{id}/url` to issue a short-lived
+      HMAC-signed download link that can be shared without requiring
+      authentication on the recipient side.
+
+# ─── Reusable components ──────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum number of requests allowed per window.
+      schema:
+        type: integer
+        example: 100
+    X-RateLimit-Remaining:
+      description: Number of requests remaining in the current window.
+      schema:
+        type: integer
+        example: 97
+    X-RateLimit-Reset:
+      description: Unix timestamp (seconds) at which the current window resets.
+      schema:
+        type: integer
+        format: int64
+        example: 1748203234
+
+  schemas:
+    RateLimitHeaders:
+      description: Rate limit headers present on every response.
+      type: object
+      properties:
+        X-RateLimit-Limit:
+          type: integer
+        X-RateLimit-Remaining:
+          type: integer
+        X-RateLimit-Reset:
+          type: integer
+
+    RateLimitStatus:
+      type: object
+      required: [ip, limit, used, remaining, resetAt, resetsIn, window]
+      properties:
+        ip:
+          type: string
+          description: Client IP address as seen by the gateway.
+          example: "203.0.113.42"
+        limit:
+          type: integer
+          description: Maximum requests allowed per window.
+          example: 100
+        used:
+          type: integer
+          description: Requests consumed in the current window.
+          example: 3
+        remaining:
+          type: integer
+          description: Requests still available in the current window.
+          example: 97
+        resetAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the window resets.
+          example: 1748203234
+        resetsIn:
+          type: integer
+          description: Seconds until the current window resets.
+          example: 57
+        window:
+          type: integer
+          description: Window duration in seconds.
+          example: 60
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: "not found"
+
+    RateLimitError:
+      type: object
+      required: [error, retryAfter]
+      properties:
+        error:
+          type: string
+          example: "Too many requests"
+        retryAfter:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds) when the limit resets.
+          example: 1748203234
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Page:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        parentId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Block:
+      type: object
+      properties:
+        id:
+          type: string
+        pageId:
+          type: string
+        type:
+          type: string
+        content:
+          type: object
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    File:
+      type: object
+      required: [id, name, url, size, provider, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: R2 object key — acts as the file's unique ID (may contain slashes, e.g. `uploads/abc.png`).
+          example: "uploads/abc123.png"
+        name:
+          type: string
+          description: Original filename.
+          example: "report.png"
+        url:
+          type: string
+          format: uri
+          description: Public URL served from R2.
+          example: "https://pub-xxxx.r2.dev/uploads/abc123.png"
+        size:
+          type: integer
+          description: File size in bytes.
+          example: 204800
+        contentType:
+          type: string
+          nullable: true
+          description: MIME type.
+          example: "image/png"
+        folder:
+          type: string
+          nullable: true
+          description: Folder prefix within the bucket.
+          example: "uploads"
+        provider:
+          type: string
+          description: Storage provider.
+          example: "r2"
+        uploadedBy:
+          type: string
+          nullable: true
+          description: User ID of the uploader; null for anonymous uploads.
+          example: "user-uuid"
+        pageId:
+          type: string
+          nullable: true
+          description: Page this file is associated with; null if unattached.
+          example: "page-uuid"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    FileList:
+      type: object
+      required: [files, count, hasMore]
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor to pass as `cursor` in the next request. Null when there are no more results.
+          example: "dXBsb2Fkcy8y..."
+        count:
+          type: integer
+          description: Number of items in this page.
+          example: 50
+        hasMore:
+          type: boolean
+          description: Whether more results exist beyond this page.
+          example: true
+
+  responses:
+    RateLimited:
+      description: Too Many Requests — rate limit exceeded.
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
+
+    Unauthorized:
+      description: Unauthorized — missing or invalid JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden — authenticated but not the resource owner.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# ─── Paths ────────────────────────────────────────────────────────────────────
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns `{ status, service }`. Not rate-limited.
+      tags: [System]
+      responses:
+        '200':
+          description: Gateway is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: api-gateway
+
+  /rate-limit/status:
+    get:
+      summary: Rate limit status
+      description: |
+        Returns the current rate limit quota for the caller's IP address.
+
+        **This endpoint does NOT consume a request slot** — calling it
+        repeatedly will not reduce `remaining`. Use it for dashboards,
+        client-side quota checks, or debugging without fear of burning quota.
+      tags: [System]
+      responses:
+        '200':
+          description: Current quota information for the caller's IP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitStatus'
+              example:
+                ip: "203.0.113.42"
+                limit: 100
+                used: 3
+                remaining: 97
+                resetAt: 1748203234
+                resetsIn: 57
+                window: 60
+
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: "s3cr3tpass"
+                name:
+                  type: string
+                  example: "Alice"
+      responses:
+        '200':
+          description: User registered successfully.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '409':
+          description: Email already registered.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/login:
+    post:
+      summary: Login a user
+      description: |
+        Returns a JWT token in the response body.
+        The gateway also sets an `HttpOnly` cookie named `token`
+        so browser clients are authenticated automatically on subsequent requests.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: "s3cr3tpass"
+      responses:
+        '200':
+          description: Authenticated successfully.
+          headers:
+            Set-Cookie:
+              description: HttpOnly cookie containing the JWT (`token=...`).
+              schema:
+                type: string
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Signed JWT (HS256).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /me:
+    get:
+      summary: Get the authenticated user's profile
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Authenticated user payload decoded from JWT.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    description: JWT payload.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /pages:
+    get:
+      summary: List pages
+      description: Returns all top-level pages, or children of `parentId` if provided.
+      tags: [Pages]
+      parameters:
+        - in: query
+          name: parentId
+          schema:
+            type: string
+          description: Filter pages by parent ID.
+      responses:
+        '200':
+          description: Array of pages.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Page'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    post:
+      summary: Create a new page
+      tags: [Pages]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  example: "My New Page"
+                parentId:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Created page.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    $ref: '#/components/schemas/Page'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /pages/{id}:
+    get:
+      summary: Get a page by ID
+      description: |
+        Fetches a single page. Add `?include=blocks` to also receive the page's
+        content blocks in a single request.
+      tags: [Pages]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: include
+          schema:
+            type: string
+            enum: [blocks]
+          description: Pass `blocks` to embed the page's blocks in the response.
+      responses:
+        '200':
+          description: Page object (with optional `blocks` array when `include=blocks`).
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      blocks:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Block'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    put:
+      summary: Update a page
+      tags: [Pages]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                parentId:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Updated page.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    delete:
+      summary: Delete a page
+      tags: [Pages]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page deleted.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /pages/{id}/blocks:
+    get:
+      summary: List blocks for a page
+      tags: [Blocks]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array of blocks ordered by `order` field.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files:
+    get:
+      summary: List files
+      description: |
+        Returns a paginated list of files from the database.
+        Supports filtering by uploader and associated page.
+        Results are sorted `createdAt DESC` — newest first.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -G 'http://localhost:8787/files' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              --data-urlencode 'limit=20' \
+              --data-urlencode 'uploadedBy=user-uuid'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const res = await fetch('/files?limit=20&uploadedBy=user-uuid', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { files, nextCursor, hasMore } = await res.json();
+
+            // Fetch next page
+            if (hasMore) {
+              const next = await fetch(`/files?cursor=${nextCursor}&limit=20`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            }
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: uploadedBy
+          schema:
+            type: string
+          description: Filter by uploader user ID.
+        - in: query
+          name: pageId
+          schema:
+            type: string
+          description: Filter by associated page ID.
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous response's `nextCursor`.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Number of results per page.
+      responses:
+        '200':
+          description: Paginated file list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+              example:
+                files: []
+                nextCursor: null
+                count: 0
+                hasMore: false
+        '400':
+          description: Invalid cursor.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/stats:
+    get:
+      summary: File storage statistics
+      description: |
+        Returns aggregate file counts and total bytes stored, broken down by
+        uploader and associated page. All three aggregates run in parallel
+        against the database — single round-trip.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Storage statistics.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [totalFiles, totalBytes, byUploader, byPage]
+                properties:
+                  totalFiles:
+                    type: integer
+                    example: 84
+                  totalBytes:
+                    type: integer
+                    description: Total storage used across all files, in bytes.
+                    example: 52428800
+                  byUploader:
+                    type: array
+                    description: Per-uploader breakdown, sorted by fileCount DESC.
+                    items:
+                      type: object
+                      properties:
+                        uploadedBy:
+                          type: string
+                          nullable: true
+                        fileCount:
+                          type: integer
+                        totalBytes:
+                          type: integer
+                  byPage:
+                    type: array
+                    description: Per-page breakdown, sorted by fileCount DESC.
+                    items:
+                      type: object
+                      properties:
+                        pageId:
+                          type: string
+                          nullable: true
+                        fileCount:
+                          type: integer
+                        totalBytes:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/search:
+    get:
+      summary: Search files
+      description: |
+        Full-text search across file `name` and `folder` using Postgres `ILIKE`.
+        Supports the same optional filters and cursor-based pagination as `GET /files`.
+        Special characters (`%`, `_`, `\`) in `q` are automatically escaped.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -G 'http://localhost:8787/files/search' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              --data-urlencode 'q=report' \
+              --data-urlencode 'limit=20'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const params = new URLSearchParams({ q: 'report', limit: '20' });
+            const res = await fetch(`/files/search?${params}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { files, query, nextCursor } = await res.json();
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Search term — matched as a case-insensitive substring against `name` and `folder`.
+          example: "report"
+        - in: query
+          name: uploadedBy
+          schema:
+            type: string
+          description: Further narrow results to a specific uploader.
+        - in: query
+          name: pageId
+          schema:
+            type: string
+          description: Further narrow results to files attached to a specific page.
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Opaque pagination cursor from a previous search response.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/FileList'
+                  - type: object
+                    properties:
+                      query:
+                        type: string
+                        description: The search term that was used.
+                        example: "report"
+        '400':
+          description: Missing or empty `q` parameter, or invalid cursor.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/bulk-delete:
+    post:
+      summary: Bulk delete files
+      description: |
+        Deletes up to 100 files in a single request.
+
+        **Flow:**
+        1. Fetches all matching DB records in one `SELECT … WHERE id IN (…)`.
+        2. Classifies each id: `owned`, `not-found`, or `forbidden`.
+        3. Batch-deletes owned records in one `DELETE … WHERE id IN (…)`.
+        4. Fires parallel `DELETE` calls to the file-service for R2 removal
+           (`Promise.allSettled` — a flaky R2 call does not abort the rest).
+
+        R2 failures are surfaced as `r2Warnings` without rolling back DB deletes.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X POST 'http://localhost:8787/files/bulk-delete' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              -H 'Content-Type: application/json' \
+              -d '{"ids":["uploads/abc.png","uploads/def.jpg"]}'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const res = await fetch('/files/bulk-delete', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ ids: ['uploads/abc.png', 'uploads/def.jpg'] })
+            });
+            const { deleted, failed, deletedCount, r2Warnings } = await res.json();
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: string
+                    minLength: 1
+                  example: ["uploads/abc.png", "uploads/def.jpg"]
+      responses:
+        '200':
+          description: Per-file deletion results.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, failed, deletedCount, failedCount]
+                properties:
+                  deleted:
+                    type: array
+                    items:
+                      type: string
+                    description: IDs successfully deleted.
+                    example: ["uploads/abc.png"]
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        reason:
+                          type: string
+                          enum: [Not found, Forbidden]
+                    example: [{ id: "uploads/def.jpg", reason: "Forbidden" }]
+                  deletedCount:
+                    type: integer
+                    example: 1
+                  failedCount:
+                    type: integer
+                    example: 1
+                  r2Warnings:
+                    type: array
+                    description: Present only when one or more R2 removals failed (DB record was still deleted).
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        warning:
+                          type: string
+        '400':
+          description: Invalid request body (empty array, too many ids, wrong types).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}:
+    get:
+      summary: Get file metadata
+      description: |
+        Returns a single file's full metadata from the database by its R2 key.
+
+        **Note:** `{id}` is the R2 object key and may contain slashes
+        (e.g. `uploads/abc.png`). URL-encode slashes as `%2F` when calling
+        from a client: `/files/uploads%2Fabc.png`.
+      tags: [Files]
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      responses:
+        '200':
+          description: File metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    patch:
+      summary: Update file metadata
+      description: |
+        Updates mutable file metadata — `name`, `folder`, and/or `pageId` — directly
+        in the database. Does **not** touch R2; use the file-service PATCH for
+        physical object moves.
+
+        Only the original uploader may update a file. Files with `uploadedBy = null`
+        may be updated by any authenticated user.
+
+        At least one field must be provided.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X PATCH 'http://localhost:8787/files/uploads%2Fabc123.png' \
+              -H 'Authorization: Bearer YOUR_JWT' \
+              -H 'Content-Type: application/json' \
+              -d '{"pageId":"page-uuid","folder":"docs"}'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const res = await fetch(`/files/${fileId}`, {
+              method: 'PATCH',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ pageId: 'page-uuid', folder: 'docs' })
+            });
+            const updatedFile = await res.json();
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  example: "final-report.png"
+                folder:
+                  type: string
+                  nullable: true
+                  example: "docs"
+                pageId:
+                  type: string
+                  nullable: true
+                  example: "page-uuid"
+      responses:
+        '200':
+          description: Updated file record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '400':
+          description: Invalid body (empty object or wrong types).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    delete:
+      summary: Delete a file
+      description: |
+        Ownership check (DB) → proxy `DELETE` to the file-service (R2 removal
+        + DB purge + `file.deleted` event).
+
+        Only the original uploader may delete. Files with `uploadedBy = null`
+        may be deleted by any authenticated user.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            curl -X DELETE 'http://localhost:8787/files/uploads%2Fabc123.png' \
+              -H 'Authorization: Bearer YOUR_JWT'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const res = await fetch(`/files/${fileId}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const { deleted } = await res.json(); // { publicId, deleted: true }
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+          example: "uploads%2Fabc123.png"
+      responses:
+        '200':
+          description: File deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicId:
+                    type: string
+                  deleted:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}/url:
+    get:
+      summary: Issue a signed download URL
+      description: |
+        Generates a short-lived signed download URL for the file.
+        The token is HMAC-SHA256 over `fileId|expiresAt` using `JWT_SECRET` —
+        no extra credentials or database writes required.
+
+        Pass the returned `signedUrl` to unauthenticated clients (e.g. embed in
+        an `<img>` tag or share with a collaborator). The URL expires after
+        `expiresIn` seconds.
+      tags: [Files]
+      x-codeSamples:
+        - lang: cURL
+          label: cURL
+          source: |
+            # Get a signed URL valid for 30 minutes
+            curl 'http://localhost:8787/files/uploads%2Fabc123.png/url?ttl=1800' \
+              -H 'Authorization: Bearer YOUR_JWT'
+
+            # Response: { signedUrl, expiresAt, expiresIn }
+            # Use the signedUrl directly — no auth header needed
+            curl -L 'https://gateway.example.com/files/uploads%2Fabc.png/download?sig=...&expires=...'
+        - lang: JavaScript
+          label: JavaScript (fetch)
+          source: |
+            // 1. Issue a signed URL (authenticated)
+            const fileId = encodeURIComponent('uploads/abc123.png');
+            const { signedUrl, expiresIn } = await fetch(
+              `/files/${fileId}/url?ttl=1800`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            ).then(r => r.json());
+
+            // 2. Use in an <img> tag or share with anyone — no auth needed
+            document.querySelector('img').src = signedUrl;
+
+            // 3. Or fetch the file directly (follows the redirect)
+            const file = await fetch(signedUrl);
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+        - in: query
+          name: ttl
+          schema:
+            type: integer
+            minimum: 60
+            maximum: 86400
+            default: 900
+          description: Token lifetime in seconds (default 15 min, max 24 h).
+      responses:
+        '200':
+          description: Signed download URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signedUrl, expiresAt, expiresIn]
+                properties:
+                  signedUrl:
+                    type: string
+                    format: uri
+                    example: "https://gateway.example.com/files/uploads%2Fabc.png/download?sig=abc123&expires=1748207234"
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    example: "2025-01-15T11:15:00Z"
+                  expiresIn:
+                    type: integer
+                    description: Token lifetime in seconds.
+                    example: 900
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /files/{id}/download:
+    get:
+      summary: Token-gated file download
+      description: |
+        Verifies the HMAC token issued by `GET /files/{id}/url` and
+        `302`-redirects to the file's actual public R2 URL.
+
+        No JWT authentication required — the `sig` token is the credential.
+        The file is served directly from R2; no bandwidth flows through the gateway.
+      tags: [Files]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: R2 object key (URL-encode slashes as `%2F`).
+        - in: query
+          name: sig
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 base64url token from `GET /files/{id}/url`.
+        - in: query
+          name: expires
+          required: true
+          schema:
+            type: integer
+          description: Unix timestamp (seconds) at which the token expires.
+      responses:
+        '302':
+          description: Redirect to the file's public R2 URL.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Missing token parameters or malformed `expires` value.
+        '401':
+          description: Invalid HMAC signature or expired token.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /upload:
+    post:
+      summary: Upload a file via the file-service
+      description: |
+        Accepts a base64-encoded file string and forwards it to the file-service,
+        which uploads it to R2 and returns the public URL.
+      tags: [Files]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: string
+                  description: Base64-encoded file content (data URL).
+                  example: "data:image/png;base64,iVBORw0KGgo..."
+                filename:
+                  type: string
+                  description: Optional filename override.
+                  example: "screenshot.png"
+                folder:
+                  type: string
+                  description: Optional folder prefix within the bucket.
+                  example: "uploads"
+      responses:
+        '200':
+          description: Uploaded file details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Public R2 URL of the uploaded file.
+                  publicId:
+                    type: string
+                    description: R2 object key.
+                  size:
+                    type: integer
+                  contentType:
+                    type: string
+                  provider:
+                    type: string
+                    example: "r2"
+        '429':
+          $ref: '#/components/responses/RateLimited'
