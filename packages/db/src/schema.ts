@@ -25,9 +25,15 @@ export const pages = pgTable('pages', {
   // Self-referential FK — AnyPgColumn avoids circular reference TS error
   parentId:  varchar('parent_id', { length: 36 })
                .references((): AnyPgColumn => pages.id, { onDelete: 'set null' }),
+  // Ownership: nullable for backward compat with pre-migration rows.
+  // All new pages always carry a userId. The service layer enforces this.
+  userId:    varchar('user_id', { length: 36 })
+               .references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull()
-});
+}, (t) => [
+  index('idx_pages_user_id').on(t.userId)
+]);
 
 export const documents = pgTable('documents', {
   name:      varchar('name', { length: 255 }).primaryKey(),
@@ -57,14 +63,13 @@ export const userStorageQuotas = pgTable('user_storage_quotas', {
 });
 
 export const files = pgTable('files', {
-  id:          varchar('id', { length: 500 }).primaryKey(), // R2 object key (e.g. "uploads/uuid.png")
-  name:        varchar('name', { length: 255 }).notNull(),  // original filename
-  url:         text('url').notNull(),                       // full public URL
-  size:        integer('size').notNull(),                   // bytes
-  contentType: varchar('content_type', { length: 127 }),    // MIME type
-  folder:      varchar('folder', { length: 255 }),          // folder prefix
+  id:          varchar('id', { length: 500 }).primaryKey(),
+  name:        varchar('name', { length: 255 }).notNull(),
+  url:         text('url').notNull(),
+  size:        integer('size').notNull(),
+  contentType: varchar('content_type', { length: 127 }),
+  folder:      varchar('folder', { length: 255 }),
   provider:    varchar('provider', { length: 50 }).notNull().default('r2'),
-  // nullable FKs — file record survives if uploader or page is deleted
   uploadedBy:  varchar('uploaded_by', { length: 36 })
                  .references(() => users.id, { onDelete: 'set null' }),
   pageId:      varchar('page_id', { length: 36 })
@@ -72,26 +77,12 @@ export const files = pgTable('files', {
   createdAt:   timestamp('created_at').notNull(),
   updatedAt:   timestamp('updated_at').notNull()
 }, (t) => [
-  // Single-column indexes for point lookups and filter-only queries
   index('idx_files_uploaded_by').on(t.uploadedBy),
   index('idx_files_page_id').on(t.pageId),
   index('idx_files_created_at').on(t.createdAt),
-  // Composite indexes cover the most common API patterns:
-  //   GET /files?uploadedBy=X  → filter + sort by createdAt (cursor pagination)
-  //   GET /files?pageId=X      → filter + sort by createdAt (cursor pagination)
   index('idx_files_uploader_created').on(t.uploadedBy, t.createdAt),
   index('idx_files_page_created').on(t.pageId, t.createdAt),
 ]);
-
-// ─── Full-Text Search Index ────────────────────────────────────────────────────
-// Stores extracted plain-text bodies for pages and blocks.
-// A GIN index using pg_trgm operators (created in migration 0005) powers
-// fast ILIKE queries over the body column without a sequential scan.
-//
-// entity_type: 'page'  → body = page title
-// entity_type: 'block' → body = text extracted recursively from content JSONB
-// entity_id  : unique — one row per page or block; upserted on every change
-// page_id    : always the owning page; used to bulk-delete on page.deleted
 
 export const searchIndex = pgTable('search_index', {
   id:         varchar('id', { length: 36 }).primaryKey(),

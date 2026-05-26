@@ -6,19 +6,91 @@ import { userStorageQuotas } from '@workspace/db';
 import type { Db } from '@workspace/db';
 import type { PublicUser } from '../types/auth.types';
 
-/** Default per-user storage quota: 100 MB (mirrors file-service config) */
 const DEFAULT_QUOTA_BYTES = 100 * 1024 * 1024;
 
-/** SHA-256 password hash using Web Crypto API (CF Workers compatible) */
+const PBKDF2_ITERATIONS = 310_000;
+const PBKDF2_HASH       = 'SHA-256';
+const PBKDF2_BITS       = 256;
+
+/**
+ * Hashes a password using PBKDF2-SHA256 with a random 16-byte salt.
+ * Output: "<saltHex>:<hashHex>" — unique salt per user defeats rainbow tables.
+ */
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
-  const buf = await crypto.subtle.digest('SHA-256', encoder.encode(password));
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  const salt    = crypto.getRandomValues(new Uint8Array(16));
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    PBKDF2_BITS
+  );
+
+  const toHex = (arr: Uint8Array) =>
+    Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return `${toHex(salt)}:${toHex(new Uint8Array(bits))}`;
 }
 
-/** HS256 JWT sign using Web Crypto API (CF Workers compatible) */
+/**
+ * Verifies a password against a stored hash.
+ *
+ * Handles two formats for backward compatibility during migration:
+ *   PBKDF2 (new): "<saltHex>:<hashHex>"
+ *   SHA-256 (legacy): "<64-char hex>" — no colon
+ *
+ * Returns { valid, needsRehash } so the caller can transparently
+ * upgrade legacy SHA-256 passwords to PBKDF2 on the next successful login.
+ */
+async function verifyPassword(
+  password: string,
+  stored: string
+): Promise<{ valid: boolean; needsRehash: boolean }> {
+  const encoder = new TextEncoder();
+
+  if (!stored.includes(':')) {
+    const buf = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return { valid: timingSafeEqual(hex, stored), needsRehash: true };
+  }
+
+  const colonIdx = stored.indexOf(':');
+  const saltHex  = stored.slice(0, colonIdx);
+  const hashHex  = stored.slice(colonIdx + 1);
+
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    PBKDF2_BITS
+  );
+
+  const derived = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return { valid: timingSafeEqual(derived, hashHex), needsRehash: false };
+}
+
+/**
+ * Constant-time string comparison — prevents timing attacks that could
+ * reveal partial hash matches through response-time differences.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 async function signJWT(
   payload: Record<string, unknown>,
   secret: string
@@ -28,7 +100,7 @@ async function signJWT(
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7; // 7 days
+  const exp  = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
   const body = btoa(JSON.stringify({ ...payload, exp }))
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
@@ -40,12 +112,8 @@ async function signJWT(
     ['sign']
   );
 
-  const sigBuf = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(`${header}.${body}`)
-  );
-  const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
+  const sigBuf = await crypto.subtle.sign('HMAC', key, encoder.encode(`${header}.${body}`));
+  const sig    = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
   return `${header}.${body}.${sig}`;
@@ -68,13 +136,12 @@ export function createAuthService(
         (err as any).status = 409;
         throw err;
       }
+
       const user = await userRepo.create({
         ...input,
         passwordHash: await hashPassword(input.password)
       });
 
-      // Create default quota row eagerly so the user starts with a clean slate.
-      // ON CONFLICT DO NOTHING makes this idempotent if called twice.
       await db
         .insert(userStorageQuotas)
         .values({
@@ -92,22 +159,24 @@ export function createAuthService(
     async login(input: v.InferInput<typeof LoginSchema>): Promise<string> {
       const email = input.email.toLowerCase().trim();
 
-      // 1. Check if account is currently locked
       const { locked, retryAfter } = await lockout.isLocked(email);
       if (locked) {
         const err = new Error(
-          `Account temporarily locked due to too many failed attempts. Try again in ${retryAfter} seconds.`
+          `Account temporarily locked. Try again in ${retryAfter} seconds.`
         );
         (err as any).status     = 429;
         (err as any).retryAfter = retryAfter;
         throw err;
       }
 
-      // 2. Validate credentials
-      const user   = await userRepo.findByEmail(email);
-      const hashed = await hashPassword(input.password);
+      const user = await userRepo.findByEmail(email);
 
-      if (!user || user.passwordHash !== hashed) {
+      // Always run the verification (even if user is null) to prevent
+      // user-enumeration via timing differences.
+      const storedHash = user?.passwordHash ?? 'dummy:dummy';
+      const { valid, needsRehash } = await verifyPassword(input.password, storedHash);
+
+      if (!user || !valid) {
         const { attempts, locked: nowLocked } = await lockout.recordFailure(email);
         const remaining = LOCKOUT_THRESHOLD - attempts;
         const message   = nowLocked
@@ -118,8 +187,14 @@ export function createAuthService(
         throw err;
       }
 
-      // 3. Successful login — clear failure counter
       await lockout.clearFailures(email);
+
+      if (needsRehash) {
+        const upgraded = await hashPassword(input.password);
+        await userRepo.updatePasswordHash(user.id, upgraded).catch(
+          (e) => console.error('[auth-service] password rehash failed:', e)
+        );
+      }
 
       return signJWT({ sub: user.id, email: user.email }, jwtSecret);
     }

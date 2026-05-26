@@ -20,15 +20,22 @@ export function createUserRepo(db: Db) {
       const [user] = await db
         .insert(users)
         .values({
-          id: crypto.randomUUID(),
-          email: input.email,
+          id:           crypto.randomUUID(),
+          email:        input.email,
           passwordHash: input.passwordHash,
-          name: input.name,
-          createdAt: now,
-          updatedAt: now
+          name:         input.name,
+          createdAt:    now,
+          updatedAt:    now
         })
         .returning();
       return user as User;
+    },
+
+    async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+      await db
+        .update(users)
+        .set({ passwordHash, updatedAt: new Date() })
+        .where(eq(users.id, id));
     }
   };
 }

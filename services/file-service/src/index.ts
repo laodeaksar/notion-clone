@@ -9,7 +9,16 @@ import type { CfMessageBatch, FileEvent } from '@workspace/shared';
 const app = new Hono<HonoEnv>();
 
 app.use('*', logger());
-app.use('*', cors());
+
+app.use('*', (c, next) => {
+  const gatewayOrigin = (c.env as any)?.GATEWAY_ORIGIN ?? 'http://localhost:8080';
+  return cors({
+    origin:       gatewayOrigin,
+    credentials:  false,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization']
+  })(c, next);
+});
 
 app.get('/ping', (c) => {
   const cf = (c.req.raw as any).cf;

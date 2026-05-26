@@ -7,7 +7,22 @@ import type { HonoEnv } from './types/env';
 const app = new Hono<HonoEnv>();
 
 app.use('*', logger());
-app.use('*', cors());
+
+/**
+ * Internal-service CORS — this service is called server-to-server from the
+ * API gateway only. Browsers never talk to it directly.
+ * GATEWAY_ORIGIN env var should be set to the gateway's internal URL.
+ * Defaults to localhost:8080 for local development.
+ */
+app.use('*', (c, next) => {
+  const gatewayOrigin = (c.env as any)?.GATEWAY_ORIGIN ?? 'http://localhost:8080';
+  return cors({
+    origin:       gatewayOrigin,
+    credentials:  false,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization']
+  })(c, next);
+});
 
 app.get('/ping', (c) => {
   const cf = (c.req.raw as any).cf;
