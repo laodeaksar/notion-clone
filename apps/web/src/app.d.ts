@@ -7,7 +7,8 @@ declare global {
       user: { id: string; email: string; name: string | null } | null;
     }
     interface PageData {
-      user?: { id: string; email: string; name: string | null } | null;
+      user?:  { id: string; email: string; name: string | null } | null;
+      pages?: Array<{ id: string; title: string; parentId: string | null }>;
     }
   }
 }
