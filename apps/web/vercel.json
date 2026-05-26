@@ -1,6 +1,4 @@
 {
-  "framework": "sveltekit",
   "buildCommand": "cd ../.. && pnpm --filter @workspace/web build",
-  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
-  "outputDirectory": ".svelte-kit/output"
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile"
 }

@@ -1,0 +1,46 @@
+import { t as getEnv } from "../../../../chunks/env.js";
+import { t as signServerJWT } from "../../../../chunks/jwt.js";
+//#region src/routes/api/upload/+server.ts
+function getToken(event) {
+	const userToken = event.cookies.get("token");
+	if (userToken) return Promise.resolve(userToken);
+	return signServerJWT(getEnv(event.platform, "JWT_SECRET"));
+}
+async function POST(event) {
+	const { request } = event;
+	const token = await getToken(event);
+	const API_GATEWAY_URL = getEnv(event.platform, "API_GATEWAY_URL");
+	if ((request.headers.get("content-type") ?? "").includes("multipart/form-data")) {
+		const form = await request.formData();
+		const res = await fetch(`${API_GATEWAY_URL}/upload`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}` },
+			body: form
+		});
+		const body = await res.text();
+		return new Response(body, {
+			status: res.status,
+			headers: { "content-type": "application/json" }
+		});
+	}
+	const json = await request.json().catch(() => null);
+	if (!json) return new Response(JSON.stringify({ error: "Invalid body" }), {
+		status: 400,
+		headers: { "content-type": "application/json" }
+	});
+	const res = await fetch(`${API_GATEWAY_URL}/upload`, {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(json)
+	});
+	const body = await res.text();
+	return new Response(body, {
+		status: res.status,
+		headers: { "content-type": "application/json" }
+	});
+}
+//#endregion
+export { POST };
