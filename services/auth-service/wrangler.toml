@@ -4,16 +4,9 @@ compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets — set these with wrangler CLI before deploying:
-#   wrangler secret put DATABASE_URL
-#   wrangler secret put JWT_SECRET
-#   wrangler secret put UPSTASH_REDIS_REST_URL
-#   wrangler secret put UPSTASH_REDIS_REST_TOKEN
-#
-# UPSTASH_REDIS_REST_URL dan UPSTASH_REDIS_REST_TOKEN digunakan untuk
-# account lockout (Redis-backed). Tanpa keduanya, fallback ke in-memory
-# (hanya aman untuk single-instance / local dev).
-#
-# Dapatkan dari: https://console.upstash.com → buat database Redis → salin REST URL & Token
+#   wrangler secret put DATABASE_URL       — Neon / Postgres connection string
+#   wrangler secret put BETTER_AUTH_SECRET — random secret for signing sessions
+#   wrangler secret put ALLOWED_ORIGINS    — comma-separated list of allowed origins
 #
 # For Cloudflare Hyperdrive (wraps external Postgres over TCP), add:
 #   [[hyperdrive]]

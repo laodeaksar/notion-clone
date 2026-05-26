@@ -46,6 +46,7 @@ write_dev_vars() {
   cat > "$dir/.dev.vars" <<EOF
 DATABASE_URL=${ACTIVE_DATABASE_URL:-}
 JWT_SECRET=${JWT_SECRET:-dev-secret}
+BETTER_AUTH_SECRET="${JWT_SECRET:-dev-secret}-notion-clone-better-auth-2024"
 GATEWAY_ORIGIN=${GATEWAY_ORIGIN:-http://localhost:8080}
 AUTH_REQUIRED=${AUTH_REQUIRED:-true}
 PAGE_SERVICE_URL=${PAGE_SERVICE_URL:-http://localhost:8082}
@@ -74,7 +75,7 @@ export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 (cd services/page-service  && pnpm exec wrangler dev --port 8082 --inspector-port 9232 --show-interactive-dev-session=false 2>&1 | sed 's/^/[page]    /') &
 
 # Hocuspocus runs as a plain Node server (not a CF Worker); must use node+tsx, not bun
-(cd services/hocuspocus-service && PORT=1234 JWT_SECRET="$JWT_SECRET" REDIS_URL="${REDIS_URL:-}" AUTH_REQUIRED="${AUTH_REQUIRED:-true}" node --import tsx src/index.ts 2>&1 | sed 's/^/[hocus]   /') &
+(cd services/hocuspocus-service && PORT=1234 AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8083}" REDIS_URL="${REDIS_URL:-}" AUTH_REQUIRED="${AUTH_REQUIRED:-true}" node --import tsx src/index.ts 2>&1 | sed 's/^/[hocus]   /') &
 
 # API gateway via wrangler dev
 (cd apps/api-gateway && pnpm exec wrangler dev --port 8080 --inspector-port 9233 --show-interactive-dev-session=false 2>&1 | sed 's/^/[gateway] /') &

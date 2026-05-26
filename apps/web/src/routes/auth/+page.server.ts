@@ -6,36 +6,54 @@ export const load: PageServerLoad = ({ locals }) => {
   if (locals.user) throw redirect(302, '/');
 };
 
+type BetterAuthResponse = {
+  user?:    { id: string; email: string; name?: string | null };
+  session?: { token: string; id: string };
+  token?:   string;
+  message?: string;
+  error?:   string;
+  code?:    string;
+};
+
+function setSessionCookie(
+  cookies: Parameters<Actions['login']>[0]['cookies'],
+  token: string
+) {
+  cookies.set('better-auth.session_token', token, {
+    httpOnly: true,
+    path:     '/',
+    sameSite: 'lax',
+    maxAge:   60 * 60 * 24 * 7
+  });
+}
+
 export const actions: Actions = {
   login: async ({ request, cookies, fetch, platform }) => {
     const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
-    const email    = data.get('email')?.toString().trim()  ?? '';
-    const password = data.get('password')?.toString()      ?? '';
+    const email    = data.get('email')?.toString().trim() ?? '';
+    const password = data.get('password')?.toString()     ?? '';
 
     if (!email || !password) {
       return fail(400, { error: 'Email and password are required', email });
     }
 
-    const res = await fetch(`${API_GATEWAY_URL}/auth/login`, {
+    const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-in/email`, {
       method:  'POST',
       headers: { 'content-type': 'application/json' },
       body:    JSON.stringify({ email, password })
     });
 
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({} as BetterAuthResponse)) as BetterAuthResponse;
 
     if (!res.ok) {
-      return fail(res.status, { error: body.error ?? 'Invalid credentials', email });
+      const msg = body.message ?? body.error ?? 'Invalid email or password';
+      return fail(res.status, { error: msg, email });
     }
 
-    if (body.token) {
-      cookies.set('token', body.token, {
-        httpOnly: true,
-        path:     '/',
-        sameSite: 'lax',
-        maxAge:   60 * 60 * 24 * 7
-      });
+    const loginToken = body.token ?? body.session?.token;
+    if (loginToken) {
+      setSessionCookie(cookies, loginToken);
     }
 
     throw redirect(302, '/');
@@ -44,9 +62,9 @@ export const actions: Actions = {
   register: async ({ request, cookies, fetch, platform }) => {
     const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
-    const email    = data.get('email')?.toString().trim()  ?? '';
-    const password = data.get('password')?.toString()      ?? '';
-    const name     = data.get('name')?.toString().trim()   || undefined;
+    const email    = data.get('email')?.toString().trim() ?? '';
+    const password = data.get('password')?.toString()     ?? '';
+    const name     = data.get('name')?.toString().trim()  || undefined;
 
     if (!email || !password) {
       return fail(400, { error: 'Email and password are required', email, name });
@@ -55,33 +73,22 @@ export const actions: Actions = {
       return fail(400, { error: 'Password must be at least 8 characters', email, name });
     }
 
-    const regRes = await fetch(`${API_GATEWAY_URL}/auth/register`, {
+    const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-up/email`, {
       method:  'POST',
       headers: { 'content-type': 'application/json' },
-      body:    JSON.stringify({ email, password, name })
+      body:    JSON.stringify({ email, password, name: name ?? email.split('@')[0] })
     });
 
-    const regBody = await regRes.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({} as BetterAuthResponse)) as BetterAuthResponse;
 
-    if (!regRes.ok) {
-      return fail(regRes.status, { error: regBody.error ?? 'Registration failed', email, name });
+    if (!res.ok) {
+      const msg = body.message ?? body.error ?? 'Registration failed';
+      return fail(res.status, { error: msg, email, name });
     }
 
-    const loginRes = await fetch(`${API_GATEWAY_URL}/auth/login`, {
-      method:  'POST',
-      headers: { 'content-type': 'application/json' },
-      body:    JSON.stringify({ email, password })
-    });
-
-    const loginBody = await loginRes.json().catch(() => ({}));
-
-    if (loginRes.ok && loginBody.token) {
-      cookies.set('token', loginBody.token, {
-        httpOnly: true,
-        path:     '/',
-        sameSite: 'lax',
-        maxAge:   60 * 60 * 24 * 7
-      });
+    const regToken = body.token ?? body.session?.token;
+    if (regToken) {
+      setSessionCookie(cookies, regToken);
     }
 
     throw redirect(302, '/');
