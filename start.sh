@@ -63,6 +63,10 @@ write_dev_vars apps/api-gateway
 
 echo "Starting microservices..."
 
+# Help workerd (used by wrangler dev) find the system CA bundle for TLS verification
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # Start CF Worker services via wrangler dev (local mode, no CF account needed)
 # Each instance gets a unique --inspector-port to avoid port 9229 conflicts
 (cd services/auth-service  && pnpm exec wrangler dev --port 8083 --inspector-port 9230 --show-interactive-dev-session=false 2>&1 | sed 's/^/[auth]    /') &

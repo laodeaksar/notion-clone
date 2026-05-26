@@ -50,6 +50,7 @@ declare module '$env/static/private' {
 	export const REPLIT_DOMAINS: string;
 	export const LD_AUDIT: string;
 	export const PGPORT: string;
+	export const NODE_EXTRA_CA_CERTS: string;
 	export const XDG_DATA_HOME: string;
 	export const npm_config_verify_deps_before_run: string;
 	export const REPL_OWNER_ID: string;
@@ -84,6 +85,7 @@ declare module '$env/static/private' {
 	export const XDG_CACHE_HOME: string;
 	export const npm_lifecycle_script: string;
 	export const REPLIT_RTLD_LOADER: string;
+	export const ACTIVE_DATABASE_URL: string;
 	export const REPLIT_DEV_DOMAIN: string;
 	export const TERM: string;
 	export const npm_package_name: string;
@@ -96,6 +98,7 @@ declare module '$env/static/private' {
 	export const REPL_HOME: string;
 	export const TZDIR: string;
 	export const REPLIT_PID1_VERSION: string;
+	export const NEON_DATABASE_URL: string;
 	export const DISPLAY: string;
 	export const npm_lifecycle_event: string;
 	export const SHLVL: string;
@@ -112,6 +115,7 @@ declare module '$env/static/private' {
 	export const PNPM_SCRIPT_SRC_DIR: string;
 	export const npm_execpath: string;
 	export const REPLIT_PID2: string;
+	export const SSL_CERT_FILE: string;
 	export const NODE_PATH: string;
 	export const PGHOST: string;
 	export const npm_package_json: string;
@@ -230,6 +234,7 @@ declare module '$env/dynamic/private' {
 		REPLIT_DOMAINS: string;
 		LD_AUDIT: string;
 		PGPORT: string;
+		NODE_EXTRA_CA_CERTS: string;
 		XDG_DATA_HOME: string;
 		npm_config_verify_deps_before_run: string;
 		REPL_OWNER_ID: string;
@@ -264,6 +269,7 @@ declare module '$env/dynamic/private' {
 		XDG_CACHE_HOME: string;
 		npm_lifecycle_script: string;
 		REPLIT_RTLD_LOADER: string;
+		ACTIVE_DATABASE_URL: string;
 		REPLIT_DEV_DOMAIN: string;
 		TERM: string;
 		npm_package_name: string;
@@ -276,6 +282,7 @@ declare module '$env/dynamic/private' {
 		REPL_HOME: string;
 		TZDIR: string;
 		REPLIT_PID1_VERSION: string;
+		NEON_DATABASE_URL: string;
 		DISPLAY: string;
 		npm_lifecycle_event: string;
 		SHLVL: string;
@@ -292,6 +299,7 @@ declare module '$env/dynamic/private' {
 		PNPM_SCRIPT_SRC_DIR: string;
 		npm_execpath: string;
 		REPLIT_PID2: string;
+		SSL_CERT_FILE: string;
 		NODE_PATH: string;
 		PGHOST: string;
 		npm_package_json: string;
