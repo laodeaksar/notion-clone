@@ -1,7 +1,8 @@
 import type { LayoutServerLoad } from './$types';
 import { API_GATEWAY_URL } from '$env/dynamic/private';
 
-export const load: LayoutServerLoad = async ({ locals, cookies }) => {
+export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
+  depends('app:pages');
   const user = locals.user ?? null;
   if (!user) return { user, pages: [] };
 
