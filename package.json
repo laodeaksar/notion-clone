@@ -7,7 +7,30 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+
+    "dev:web": "pnpm --filter @workspace/web dev",
+    "dev:gateway": "pnpm --filter @workspace/api-gateway dev",
+    "dev:auth": "pnpm --filter @workspace/auth-service dev",
+    "dev:block": "pnpm --filter @workspace/block-service dev",
+    "dev:page": "pnpm --filter @workspace/page-service dev",
+    "dev:file": "pnpm --filter @workspace/file-service dev",
+    "dev:hocus": "pnpm --filter @workspace/hocuspocus-service dev",
+
+    "build:web": "pnpm --filter @workspace/web build",
+    "build:gateway": "pnpm --filter @workspace/api-gateway build",
+    "build:auth": "pnpm --filter @workspace/auth-service build",
+    "build:block": "pnpm --filter @workspace/block-service build",
+    "build:page": "pnpm --filter @workspace/page-service build",
+    "build:file": "pnpm --filter @workspace/file-service build",
+    "build:hocus": "pnpm --filter @workspace/hocuspocus-service build",
+
+    "deploy:gateway": "pnpm --filter @workspace/api-gateway deploy",
+    "deploy:auth": "pnpm --filter @workspace/auth-service deploy",
+    "deploy:block": "pnpm --filter @workspace/block-service deploy",
+    "deploy:page": "pnpm --filter @workspace/page-service deploy",
+    "deploy:file": "pnpm --filter @workspace/file-service deploy",
+    "deploy:web": "pnpm --filter @workspace/web deploy:pages"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
