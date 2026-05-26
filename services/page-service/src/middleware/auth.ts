@@ -1,17 +1,19 @@
 import type { MiddlewareHandler } from 'hono';
-import { verifyJWT } from '@workspace/shared';
 import type { HonoEnv } from '../types/env';
 
+/**
+ * authMiddleware — trusts the identity headers injected by the API gateway
+ * after it has validated the better-auth session.
+ *
+ * The gateway sets:
+ *   x-user-id    — the authenticated user's UUID
+ *   x-user-email — the authenticated user's email address (may be empty)
+ */
 export const authMiddleware: MiddlewareHandler<HonoEnv> = async (c, next) => {
-  const authHeader = c.req.header('authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const userId = c.req.header('x-user-id');
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
-  if (!token) return c.json({ error: 'Unauthorized' }, 401);
-
-  const payload = await verifyJWT(token, c.env.JWT_SECRET);
-  if (!payload) return c.json({ error: 'Unauthorized' }, 401);
-
-  c.set('userId', payload.sub as string);
-  c.set('userEmail', payload.email as string);
+  c.set('userId',    userId);
+  c.set('userEmail', c.req.header('x-user-email') ?? '');
   await next();
 };

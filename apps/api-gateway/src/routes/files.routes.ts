@@ -468,10 +468,11 @@ fileRoutes.get('/files/*/download', async (c) => {
  *   503 — file-service unavailable
  */
 fileRoutes.get('/files/quota', requireAuth, async (c) => {
-  const fileUrl    = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
-  const authHeader = c.req.header('Authorization') ?? '';
+  const fileUrl  = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const userId   = (c.var.jwtPayload as { sub?: string })?.sub ?? '';
+  const userEmail = (c.var.jwtPayload as { email?: string })?.email ?? '';
   const { data, status } = await proxyJson(fileUrl, '/quota', {
-    headers: { Authorization: authHeader }
+    headers: { 'x-user-id': userId, 'x-user-email': userEmail }
   });
   return c.json(data, status as any);
 });
@@ -544,14 +545,15 @@ fileRoutes.delete('/files/*', requireAuth, async (c) => {
 
   // ── 2. Proxy DELETE to file-service (R2 removal + DB purge + event) ───────
   const fileServiceUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
-  const authHeader     = c.req.header('authorization') ?? '';
+  const userId         = (c.var.jwtPayload as { sub?: string })?.sub ?? '';
+  const userEmail      = (c.var.jwtPayload as { email?: string })?.email ?? '';
 
   const { data, status } = await proxyJson(
     fileServiceUrl,
     `/upload/${fileId}`,
     {
       method:  'DELETE',
-      headers: { authorization: authHeader },
+      headers: { 'x-user-id': userId, 'x-user-email': userEmail },
     }
   );
 

@@ -1,41 +1,37 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { routes } from './routes/index';
-import type { HonoEnv } from './types/env';
+import { createAuth } from './auth';
 
-const app = new Hono<HonoEnv>();
+type Env = {
+  DATABASE_URL:        string;
+  BETTER_AUTH_SECRET?: string;
+  ALLOWED_ORIGINS?:    string;
+};
 
-app.use('*', logger());
+const app = new Hono<{ Bindings: Env }>();
 
-/**
- * Internal-service CORS — this service is called server-to-server from the
- * API gateway only. Browsers never talk to it directly.
- * GATEWAY_ORIGIN env var should be set to the gateway's internal URL.
- * Defaults to localhost:8080 for local development.
- */
-app.use('*', (c, next) => {
-  const gatewayOrigin = (c.env as any)?.GATEWAY_ORIGIN ?? 'http://localhost:8080';
-  return cors({
-    origin:       gatewayOrigin,
-    credentials:  false,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization']
-  })(c, next);
-});
-
-app.get('/ping', (c) => {
-  const cf = (c.req.raw as any).cf;
-  return c.json({
+app.get('/ping', (c) =>
+  c.json({
     status:    'ok',
     service:   'auth-service',
     version:   '0.0.1',
-    region:    cf?.colo ?? 'local',
     timestamp: new Date().toISOString()
-  });
-});
+  })
+);
 
-app.route('/', routes);
+/**
+ * Delegate all better-auth routes to the better-auth handler.
+ *
+ * Exposed endpoints (examples):
+ *   POST /api/auth/sign-up/email     — register
+ *   POST /api/auth/sign-in/email     — login → returns { user, session }
+ *   POST /api/auth/sign-out          — logout (invalidates session)
+ *   GET  /api/auth/get-session       — returns current session (Bearer or cookie)
+ */
+app.on(
+  ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  '/api/auth/**',
+  (c) => createAuth(c.env).handler(c.req.raw)
+);
 
 app.onError((err, c) => {
   console.error('[auth-service] unhandled error:', err);

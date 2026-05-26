@@ -6,27 +6,82 @@ import {
   jsonb,
   timestamp,
   integer,
-  bigint
+  bigint,
+  boolean
 } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
+// ─── better-auth: user table (extends existing users) ────────────────────────
+
 export const users = pgTable('users', {
-  id:           varchar('id', { length: 36 }).primaryKey(),
-  email:        varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  name:         varchar('name', { length: 255 }),
-  createdAt:    timestamp('created_at').notNull(),
-  updatedAt:    timestamp('updated_at').notNull()
+  id:            varchar('id', { length: 36 }).primaryKey(),
+  email:         varchar('email', { length: 255 }).notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  passwordHash:  text('password_hash'),
+  name:          varchar('name', { length: 255 }),
+  image:         text('image'),
+  createdAt:     timestamp('created_at').notNull(),
+  updatedAt:     timestamp('updated_at').notNull()
 });
+
+// ─── better-auth: session table ───────────────────────────────────────────────
+
+export const sessions = pgTable('sessions', {
+  id:        text('id').primaryKey(),
+  expiresAt: timestamp('expires_at').notNull(),
+  token:     text('token').notNull().unique(),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  userId:    varchar('user_id', { length: 36 })
+               .notNull()
+               .references(() => users.id, { onDelete: 'cascade' })
+}, (t) => [
+  index('idx_sessions_user_id').on(t.userId),
+  index('idx_sessions_token').on(t.token)
+]);
+
+// ─── better-auth: account table (stores credentials / OAuth tokens) ───────────
+
+export const accounts = pgTable('accounts', {
+  id:                   text('id').primaryKey(),
+  accountId:            text('account_id').notNull(),
+  providerId:           text('provider_id').notNull(),
+  userId:               varchar('user_id', { length: 36 })
+                          .notNull()
+                          .references(() => users.id, { onDelete: 'cascade' }),
+  accessToken:          text('access_token'),
+  refreshToken:         text('refresh_token'),
+  idToken:              text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at'),
+  refreshTokenExpiresAt:timestamp('refresh_token_expires_at'),
+  scope:                text('scope'),
+  password:             text('password'),
+  createdAt:            timestamp('created_at').notNull(),
+  updatedAt:            timestamp('updated_at').notNull()
+}, (t) => [
+  index('idx_accounts_user_id').on(t.userId)
+]);
+
+// ─── better-auth: verification table ─────────────────────────────────────────
+
+export const verifications = pgTable('verifications', {
+  id:         text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value:      text('value').notNull(),
+  expiresAt:  timestamp('expires_at').notNull(),
+  createdAt:  timestamp('created_at'),
+  updatedAt:  timestamp('updated_at')
+});
+
+// ─── Application tables ───────────────────────────────────────────────────────
 
 export const pages = pgTable('pages', {
   id:        varchar('id', { length: 36 }).primaryKey(),
   title:     varchar('title', { length: 255 }).notNull(),
-  // Self-referential FK — AnyPgColumn avoids circular reference TS error
   parentId:  varchar('parent_id', { length: 36 })
                .references((): AnyPgColumn => pages.id, { onDelete: 'set null' }),
-  // Ownership: nullable for backward compat with pre-migration rows.
-  // All new pages always carry a userId. The service layer enforces this.
   userId:    varchar('user_id', { length: 36 })
                .references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').notNull(),
@@ -43,7 +98,6 @@ export const documents = pgTable('documents', {
 
 export const blocks = pgTable('blocks', {
   id:        varchar('id', { length: 36 }).primaryKey(),
-  // FK → pages.id: deleting a page removes all its blocks
   pageId:    varchar('page_id', { length: 36 })
                .notNull()
                .references(() => pages.id, { onDelete: 'cascade' }),
