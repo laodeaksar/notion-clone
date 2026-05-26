@@ -15,6 +15,9 @@
 	"/api/pages/[id]": [
 		"src/routes/api/pages/[id]/+server.ts"
 	],
+	"/api/search": [
+		"src/routes/api/search/+server.ts"
+	],
 	"/api/upload": [
 		"src/routes/api/upload/+server.ts"
 	],
