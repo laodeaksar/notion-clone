@@ -1,10 +1,11 @@
 <script lang="ts">
   import '../lib/styles/globals.css';
   import type { LayoutData } from './$types';
+  import type { Snippet } from 'svelte';
 
-  export let data: LayoutData;
+  let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-  $: user = data.user ?? null;
+  let user = $derived(data.user ?? null);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -23,7 +24,7 @@
       </span>
       <button
         type="button"
-        on:click={logout}
+        onclick={logout}
         class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors"
       >
         Sign out
@@ -32,4 +33,4 @@
   </nav>
 {/if}
 
-<slot />
+{@render children()}

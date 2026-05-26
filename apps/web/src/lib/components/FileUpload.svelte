@@ -1,10 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { formatBytes } from '$lib/utils';
-
-  export let maxFiles: number = 20;
-  export let accept: string = '*/*';
-  export let folder: string = 'notion-clone';
 
   type UploadStatus = 'pending' | 'uploading' | 'success' | 'error';
 
@@ -19,14 +14,31 @@
     preview?:  string;
   }
 
-  const dispatch = createEventDispatcher<{
-    uploaded: { url: string; publicId: string; name: string };
-  }>();
+  interface UploadedDetail {
+    url:      string;
+    publicId: string;
+    name:     string;
+  }
 
-  let dragging     = false;
+  let {
+    maxFiles  = 20,
+    accept    = '*/*',
+    folder    = 'notion-clone',
+    onuploaded
+  }: {
+    maxFiles?:   number;
+    accept?:     string;
+    folder?:     string;
+    onuploaded?: (detail: UploadedDetail) => void;
+  } = $props();
+
+  let dragging     = $state(false);
   let fileInput: HTMLInputElement;
-  let items: FileItem[] = [];
-  let copiedId: string | null = null;
+  let items: FileItem[] = $state([]);
+  let copiedId: string | null = $state(null);
+
+  let successItems = $derived(items.filter(i => i.status === 'success'));
+  let pendingItems = $derived(items.filter(i => i.status !== 'success'));
 
   function fileIcon(file: File): string {
     const t = file.type;
@@ -100,7 +112,7 @@
           ? { ...i, status: 'success', progress: 100, url: data.url, publicId: data.publicId }
           : i
       );
-      dispatch('uploaded', { url: data.url, publicId: data.publicId, name: item.file.name });
+      onuploaded?.({ url: data.url, publicId: data.publicId, name: item.file.name });
     } catch (err: any) {
       clearInterval(fakeProgress);
       items = items.map(i =>
@@ -145,9 +157,6 @@
     if (input.files) enqueue(input.files);
     input.value = '';
   }
-
-  $: successItems   = items.filter(i => i.status === 'success');
-  $: pendingItems   = items.filter(i => i.status !== 'success');
 </script>
 
 <div class="space-y-4">
@@ -158,11 +167,11 @@
       {dragging
         ? 'border-violet-400 bg-violet-50 scale-[1.01]'
         : 'border-slate-200 bg-slate-50 hover:border-violet-300 hover:bg-violet-50/30'}"
-    on:dragover={onDragOver}
-    on:dragleave={onDragLeave}
-    on:drop={onDrop}
-    on:click={() => fileInput.click()}
-    on:keydown={(e) => e.key === 'Enter' && fileInput.click()}
+    ondragover={onDragOver}
+    ondragleave={onDragLeave}
+    ondrop={onDrop}
+    onclick={() => fileInput.click()}
+    onkeydown={(e) => e.key === 'Enter' && fileInput.click()}
   >
     <div class="flex flex-col items-center justify-center gap-3 py-12 px-6">
       <div class="text-4xl {dragging ? 'scale-110' : ''} transition-transform duration-200">
@@ -183,7 +192,7 @@
       {accept}
       multiple
       class="sr-only"
-      on:change={onInputChange}
+      onchange={onInputChange}
     />
   </button>
 
@@ -226,7 +235,7 @@
               <button
                 type="button"
                 class="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                on:click={() => retry(item)}
+                onclick={() => retry(item)}
               >Retry</button>
             {:else if item.status === 'pending'}
               <span class="text-xs text-slate-400">Queued</span>
@@ -234,7 +243,7 @@
             <button
               type="button"
               class="ml-1 rounded-lg p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
-              on:click={() => remove(item.id)}
+              onclick={() => remove(item.id)}
               aria-label="Remove"
             >✕</button>
           </div>
@@ -272,7 +281,7 @@
                 <button
                   type="button"
                   class="rounded-lg px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 transition-colors"
-                  on:click={() => copyUrl(item.url!, item.id)}
+                  onclick={() => copyUrl(item.url!, item.id)}
                 >
                   {copiedId === item.id ? '✓ Copied' : 'Copy URL'}
                 </button>
@@ -287,7 +296,7 @@
               <button
                 type="button"
                 class="rounded-lg p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
-                on:click={() => remove(item.id)}
+                onclick={() => remove(item.id)}
                 aria-label="Remove"
               >✕</button>
             </div>

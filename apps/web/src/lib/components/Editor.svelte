@@ -13,23 +13,24 @@
 
   interface PageData {
     page?: { id: string; title?: string } | null;
+    user?: { id: string; email: string; name: string | null } | null;
   }
 
-  export let data: PageData;
+  let { data }: { data: PageData } = $props();
 
   let editorContainer: HTMLDivElement | null = null;
   let fileInput: HTMLInputElement | null     = null;
   let editor: Editor | null                  = null;
   let provider: HocuspocusProvider | null   = null;
 
-  let showSlashMenu = false;
-  let activeIndex   = 0;
-  let menuPosition  = { top: 0, left: 0 };
+  let showSlashMenu = $state(false);
+  let activeIndex   = $state(0);
+  let menuPosition  = $state({ top: 0, left: 0 });
 
-  let cursorName:  string  = 'Anonymous';
-  let cursorColor: string  = '#7C3AED';
-  let editingName: boolean = false;
-  let nameInput:   string  = '';
+  let cursorName:  string  = $state('Anonymous');
+  let cursorColor: string  = $state('#7C3AED');
+  let editingName: boolean = $state(false);
+  let nameInput:   string  = $state('');
 
   const CURSOR_COLORS = [
     '#7C3AED', '#2563EB', '#059669', '#D97706',
@@ -146,7 +147,7 @@
 
     const ydoc = new Y.Doc();
     provider = new HocuspocusProvider({
-      url:      PUBLIC_HOCUSPOCUS_URL as any,
+      url:      PUBLIC_HOCUSPOCUS_URL as string,
       document: ydoc,
       name:     data.page?.id || 'page'
     });
@@ -208,7 +209,7 @@
   <div class="mb-4 flex items-center gap-2">
     <span class="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style="background:{cursorColor}"></span>
     {#if editingName}
-      <form class="flex items-center gap-1.5" on:submit|preventDefault={saveName}>
+      <form class="flex items-center gap-1.5" onsubmit={(e) => { e.preventDefault(); saveName(); }}>
         <input
           type="text"
           bind:value={nameInput}
@@ -220,7 +221,7 @@
         <button type="submit" class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors">
           Save
         </button>
-        <button type="button" class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors" on:click={() => { editingName = false; }}>
+        <button type="button" class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors" onclick={() => { editingName = false; }}>
           Cancel
         </button>
       </form>
@@ -236,14 +237,14 @@
         <button
           type="button"
           class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          on:click={() => { nameInput = cursorName; editingName = true; }}
+          onclick={() => { nameInput = cursorName; editingName = true; }}
         >Change</button>
       {/if}
     {/if}
   </div>
 
   <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
-  <input type="file" accept="image/*" bind:this={fileInput} class="hidden" on:change={handleFileChange} />
+  <input type="file" accept="image/*" bind:this={fileInput} class="hidden" onchange={handleFileChange} />
 
   {#if showSlashMenu}
     <div
@@ -259,8 +260,8 @@
             type="button"
             class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition-colors
               {activeIndex === index ? 'bg-violet-50 text-violet-700' : 'hover:bg-slate-50'}"
-            on:click={() => insertSlashCommand(item)}
-            on:mouseenter={() => { activeIndex = index; }}
+            onclick={() => insertSlashCommand(item)}
+            onmouseenter={() => { activeIndex = index; }}
           >
             <span class="w-5 text-center font-mono text-xs text-slate-400">{item.icon}</span>
             {item.label}

@@ -4,26 +4,29 @@
   import type { GalleryFile } from './+page.server';
   import { nameFromPublicId, isImageUrl, formatBytes } from '$lib/utils';
 
-  export let data: PageData;
+  let { data }: { data: PageData } = $props();
 
   interface SessionFile extends GalleryFile {
     isNew: true;
   }
 
-  let gallery:    GalleryFile[]   = data.files ?? [];
-  let truncated:  boolean          = data.truncated ?? false;
-  let cursor:     string | null    = data.cursor ?? null;
-  let loadError:  string | null    = data.error ?? null;
+  let gallery:    GalleryFile[]   = $state(data.files ?? []);
+  let truncated:  boolean          = $state(data.truncated ?? false);
+  let cursor:     string | null    = $state(data.cursor ?? null);
+  let loadError:  string | null    = $state(data.error ?? null);
 
-  let newUploads: SessionFile[]    = [];
-  let copiedId:   string | null    = null;
-  let deletingId: string | null    = null;
-  let confirmId:  string | null    = null;
-  let loadingMore: boolean         = false;
-  let loadMoreError: string | null = null;
+  let newUploads: SessionFile[]    = $state([]);
+  let copiedId:   string | null    = $state(null);
+  let deletingId: string | null    = $state(null);
+  let confirmId:  string | null    = $state(null);
+  let loadingMore: boolean         = $state(false);
+  let loadMoreError: string | null = $state(null);
 
-  function onUploaded(e: CustomEvent<{ url: string; publicId: string; name: string }>) {
-    const { url, publicId, name } = e.detail;
+  let allFiles = $derived([...newUploads, ...gallery]);
+  let total    = $derived(allFiles.length);
+
+  function onUploaded(detail: { url: string; publicId: string; name: string }) {
+    const { url, publicId, name } = detail;
     const fresh: SessionFile = {
       publicId,
       url,
@@ -76,12 +79,12 @@
         loadMoreError = err.error ?? 'Load failed';
         return;
       }
-      const data = await res.json() as {
+      const json = await res.json() as {
         items:     Array<{ publicId: string; url: string; size: number; uploadedAt: string }>;
         truncated: boolean;
         cursor:    string | null;
       };
-      const more: GalleryFile[] = (data.items ?? [])
+      const more: GalleryFile[] = (json.items ?? [])
         .filter(item => !newUploads.some(n => n.publicId === item.publicId))
         .map(item => ({
           publicId:   item.publicId,
@@ -91,17 +94,14 @@
           uploadedAt: item.uploadedAt
         }));
       gallery   = [...gallery, ...more];
-      truncated = data.truncated ?? false;
-      cursor    = data.cursor ?? null;
+      truncated = json.truncated ?? false;
+      cursor    = json.cursor ?? null;
     } catch {
       loadMoreError = 'Network error — could not load more files';
     } finally {
       loadingMore = false;
     }
   }
-
-  $: allFiles = [...newUploads, ...gallery];
-  $: total    = allFiles.length;
 </script>
 
 <svelte:head>
@@ -134,7 +134,7 @@
       <p class="mb-5 text-sm text-slate-500">
         Drag &amp; drop or click to select — files are stored on Cloudinary and the URL is saved to your database.
       </p>
-      <FileUpload folder="notion-clone" on:uploaded={onUploaded} />
+      <FileUpload folder="notion-clone" onuploaded={onUploaded} />
     </section>
 
     <!-- Load error banner -->
@@ -222,14 +222,14 @@
                     <button
                       type="button"
                       class="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-red-600 transition-colors"
-                      on:click={() => confirmDelete(file.publicId)}
+                      onclick={() => confirmDelete(file.publicId)}
                     >
                       Delete
                     </button>
                     <button
                       type="button"
                       class="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white transition-colors"
-                      on:click={cancelDelete}
+                      onclick={cancelDelete}
                     >
                       Cancel
                     </button>
@@ -242,7 +242,7 @@
                   <button
                     type="button"
                     class="w-full rounded-lg bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow hover:bg-violet-50 transition-colors"
-                    on:click={() => copyUrl(file.url, file.publicId)}
+                    onclick={() => copyUrl(file.url, file.publicId)}
                   >
                     {copiedId === file.publicId ? '✓ Copied!' : 'Copy URL'}
                   </button>
@@ -257,7 +257,7 @@
                   <button
                     type="button"
                     class="w-full rounded-lg bg-red-500/90 px-2 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-600 transition-colors"
-                    on:click={() => requestDelete(file.publicId)}
+                    onclick={() => requestDelete(file.publicId)}
                   >
                     🗑 Delete
                   </button>
@@ -277,7 +277,7 @@
               type="button"
               disabled={loadingMore}
               class="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              on:click={loadMore}
+              onclick={loadMore}
             >
               {#if loadingMore}
                 <span class="inline-flex items-center gap-2">

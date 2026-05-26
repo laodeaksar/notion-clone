@@ -2,10 +2,10 @@
   import { enhance } from '$app/forms';
   import type { ActionData } from './$types';
 
-  export let form: ActionData;
+  let { form }: { form: ActionData } = $props();
 
-  let tab: 'login' | 'register' = 'login';
-  let loading = false;
+  let tab: 'login' | 'register' = $state('login');
+  let loading = $state(false);
 </script>
 
 <svelte:head>
@@ -33,13 +33,13 @@
           type="button"
           class="flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors
             {tab === 'login' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-          on:click={() => { tab = 'login'; }}
+          onclick={() => { tab = 'login'; }}
         >Sign in</button>
         <button
           type="button"
           class="flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors
             {tab === 'register' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}"
-          on:click={() => { tab = 'register'; }}
+          onclick={() => { tab = 'register'; }}
         >Create account</button>
       </div>
 
