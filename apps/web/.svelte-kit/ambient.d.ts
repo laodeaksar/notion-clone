@@ -98,7 +98,6 @@ declare module '$env/static/private' {
 	export const REPL_HOME: string;
 	export const TZDIR: string;
 	export const REPLIT_PID1_VERSION: string;
-	export const NEON_DATABASE_URL: string;
 	export const DISPLAY: string;
 	export const npm_lifecycle_event: string;
 	export const SHLVL: string;
@@ -282,7 +281,6 @@ declare module '$env/dynamic/private' {
 		REPL_HOME: string;
 		TZDIR: string;
 		REPLIT_PID1_VERSION: string;
-		NEON_DATABASE_URL: string;
 		DISPLAY: string;
 		npm_lifecycle_event: string;
 		SHLVL: string;

@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: Deploy Services to Cloudflare
 
 on:
   push:
@@ -105,10 +105,10 @@ jobs:
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
-          DATABASE_URL:   ${{ secrets.DATABASE_URL }}
-          JWT_SECRET:     ${{ secrets.JWT_SECRET }}
-          GATEWAY_ORIGIN: ${{ vars.GATEWAY_ORIGIN }}
-          AUTH_REQUIRED:  ${{ vars.AUTH_REQUIRED }}
+          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
+          JWT_SECRET:      ${{ secrets.JWT_SECRET }}
+          GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
+          AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
   # ── 3. block-service ─────────────────────────────────────────────────────────
@@ -194,7 +194,6 @@ jobs:
           ALLOWED_ORIGINS:       ${{ vars.ALLOWED_ORIGINS }}
 
   # ── 5. api-gateway ───────────────────────────────────────────────────────────
-  #       Runs only after all 4 upstream services are deployed.
   deploy-gateway:
     name: Deploy api-gateway
     runs-on: ubuntu-latest
@@ -231,43 +230,3 @@ jobs:
           GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
           AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
-
-  # ── 6. web (Cloudflare Pages) ─────────────────────────────────────────────
-  #       Depends on deploy-gateway so the gateway is live before the frontend
-  #       is published. CF_PAGES=1 makes svelte.config.js use adapter-cloudflare.
-  deploy-web:
-    name: Deploy web to Cloudflare Pages
-    runs-on: ubuntu-latest
-    needs: [deploy-gateway]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web (Cloudflare Pages adapter)
-        working-directory: apps/web
-        run: pnpm build
-        env:
-          CF_PAGES:               "1"
-          PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
-          PUBLIC_HOCUSPOCUS_URL:  ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager:   pnpm
-          workingDirectory: apps/web
-          command: >
-            pages deploy .svelte-kit/cloudflare
-            --project-name=notion-web
-            --commit-dirty=true

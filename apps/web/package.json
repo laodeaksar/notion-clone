@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 5000",
     "build": "svelte-kit sync && vite build",
-    "deploy:pages": "CF_PAGES=1 pnpm build && wrangler pages deploy .svelte-kit/cloudflare --project-name notion-clone-web",
     "preview": "svelte-kit preview",
     "lint": "eslint . --ext .svelte,.ts",
     "format": "prettier --write \"**/*.{ts,svelte}\"",
@@ -14,9 +13,7 @@
   },
   "dependencies": {
     "@hocuspocus/provider": "^1.0.0",
-    "@sveltejs/adapter-cloudflare": "^7.2.8",
     "@sveltejs/adapter-node": "^5.5.4",
-    "@sveltejs/adapter-vercel": "^6.3.3",
     "@sveltejs/kit": "^2.0.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tiptap/core": "^3.0.0",
@@ -36,13 +33,11 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "@sveltejs/adapter-auto": "^3.0.0",
     "@types/node": "^20.0.0",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0",
     "svelte-check": "^3.0.0",
     "typescript": "^5.4.0",
-    "vite": "^8.0.14",
-    "wrangler": "^4.94.0"
+    "vite": "^8.0.14"
   }
 }
