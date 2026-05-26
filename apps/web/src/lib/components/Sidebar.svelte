@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { pageIcons } from '$lib/stores/pageIcons';
 
   interface Page {
     id:       string;
@@ -357,6 +358,9 @@
 
         {:else}
           <!-- Normal row -->
+          <span class="shrink-0 text-base leading-none select-none">
+            {$pageIcons[node.id] ?? '📄'}
+          </span>
           <a href="/page/{node.id}"
             class="min-w-0 flex-1 truncate text-sm leading-6" title={node.title}>
             {node.title}
