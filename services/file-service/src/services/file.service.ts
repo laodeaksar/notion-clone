@@ -25,6 +25,33 @@ import type {
   QuotaResult
 } from '../types/file.types';
 
+/**
+ * Estimate decoded byte count from a base64 string.
+ * Formula: every 4 base64 chars → 3 bytes; strip padding.
+ */
+function estimateBase64Bytes(base64: string): number {
+  const cleaned = base64.endsWith('==')
+    ? base64.slice(0, -2)
+    : base64.endsWith('=')
+      ? base64.slice(0, -1)
+      : base64;
+  return Math.ceil(cleaned.length * 3 / 4);
+}
+
+/**
+ * Build and throw a 507 Insufficient Storage error with a descriptive message.
+ */
+function quotaExceededError(used: number, limit: number, required: number): never {
+  const remaining = Math.max(0, limit - used);
+  const err = new Error(
+    `Storage quota exceeded. ` +
+    `Used ${used} / ${limit} bytes — ` +
+    `${required} bytes required but only ${remaining} bytes remain.`
+  );
+  (err as any).status = 507;
+  throw err;
+}
+
 export function createFileService(
   cloudName: string,
   apiKey: string,
@@ -34,10 +61,38 @@ export function createFileService(
 ) {
   const publisher = createFilePublisher(eventsQueue);
 
+  /** Shared quota helper — checks BEFORE upload; never throws if DB is absent. */
+  async function enforceQuota(uploadedBy: string, requiredBytes: number): Promise<{ limit: number }> {
+    if (!db) return { limit: DEFAULT_QUOTA_BYTES };
+
+    const quotaRepo = createQuotaRepo(db);
+    const record    = await quotaRepo.get(uploadedBy).catch(() => null);
+    const used      = record?.usedBytes  ?? 0;
+    const limit     = record?.limitBytes ?? DEFAULT_QUOTA_BYTES;
+
+    if (used + requiredBytes > limit) {
+      quotaExceededError(used, limit, requiredBytes);
+    }
+    return { limit };
+  }
+
+  /** Atomic quota increment — fire-and-forget style (non-fatal on failure). */
+  async function incrementQuota(uploadedBy: string, bytes: number, limit: number): Promise<void> {
+    if (!db) return;
+    const quotaRepo = createQuotaRepo(db);
+    await quotaRepo.upsertAdd(uploadedBy, limit, bytes)
+      .catch((err) => console.error('[file-service] quota increment failed:', err));
+  }
+
   return {
     async getQuota(userId: string): Promise<QuotaResult> {
       if (!db) {
-        return { userId, usedBytes: 0, limitBytes: DEFAULT_QUOTA_BYTES, availableBytes: DEFAULT_QUOTA_BYTES };
+        return {
+          userId,
+          usedBytes:      0,
+          limitBytes:     DEFAULT_QUOTA_BYTES,
+          availableBytes: DEFAULT_QUOTA_BYTES
+        };
       }
       const repo   = createQuotaRepo(db);
       const record = await repo.get(userId).catch(() => null);
@@ -55,23 +110,20 @@ export function createFileService(
       input: v.InferInput<typeof UploadInputSchema>,
       uploadedBy?: string
     ): Promise<UploadResult> {
+      // ── 1. Quota pre-check (before touching Cloudinary) ──────────────────
+      let quotaLimit = DEFAULT_QUOTA_BYTES;
+      if (uploadedBy) {
+        const raw           = input.data.includes(',') ? input.data.split(',')[1] : input.data;
+        const estimatedSize = estimateBase64Bytes(raw);
+        const { limit }     = await enforceQuota(uploadedBy, estimatedSize);
+        quotaLimit          = limit;
+      }
+
+      // ── 2. Upload ─────────────────────────────────────────────────────────
       const result = await uploadToCloudinary(input, cloudName, apiKey, apiSecret, DEFAULT_UPLOAD_FOLDER);
 
+      // ── 3. Persist DB record + update quota (non-fatal) ──────────────────
       if (db) {
-        if (uploadedBy) {
-          const quotaRepo = createQuotaRepo(db);
-          const quota     = await quotaRepo.get(uploadedBy).catch(() => null);
-          const used      = quota?.usedBytes  ?? 0;
-          const limit     = quota?.limitBytes ?? DEFAULT_QUOTA_BYTES;
-          if (used + result.size > limit) {
-            await deleteFromCloudinary(result.publicId, cloudName, apiKey, apiSecret, result.contentType)
-              .catch(() => {});
-            throw new Error(`Storage quota exceeded. Used: ${used} bytes, Limit: ${limit} bytes`);
-          }
-          await quotaRepo.upsertAdd(uploadedBy, limit, result.size)
-            .catch((err) => console.error('[file-service] quota update failed:', err));
-        }
-
         const repo = createFileRepo(db);
         await repo.create({
           id:          result.publicId,
@@ -84,6 +136,10 @@ export function createFileService(
           uploadedBy:  uploadedBy ?? null,
           pageId:      null
         }).catch((err) => console.error('[file-service] DB insert failed:', err));
+
+        if (uploadedBy) {
+          await incrementQuota(uploadedBy, result.size, quotaLimit);
+        }
       }
 
       await publisher.publish({
@@ -99,25 +155,20 @@ export function createFileService(
       filename?: string,
       uploadedBy?: string
     ): Promise<UploadResult> {
+      // ── 1. Quota pre-check using exact file.size ──────────────────────────
+      let quotaLimit = DEFAULT_QUOTA_BYTES;
+      if (uploadedBy) {
+        const { limit } = await enforceQuota(uploadedBy, file.size);
+        quotaLimit      = limit;
+      }
+
+      // ── 2. Upload ─────────────────────────────────────────────────────────
       const result = await uploadFileToCloudinary(
         file, cloudName, apiKey, apiSecret, DEFAULT_UPLOAD_FOLDER, folder, filename
       );
 
+      // ── 3. Persist DB record + update quota (non-fatal) ──────────────────
       if (db) {
-        if (uploadedBy) {
-          const quotaRepo = createQuotaRepo(db);
-          const quota     = await quotaRepo.get(uploadedBy).catch(() => null);
-          const used      = quota?.usedBytes  ?? 0;
-          const limit     = quota?.limitBytes ?? DEFAULT_QUOTA_BYTES;
-          if (used + result.size > limit) {
-            await deleteFromCloudinary(result.publicId, cloudName, apiKey, apiSecret, result.contentType)
-              .catch(() => {});
-            throw new Error(`Storage quota exceeded. Used: ${used} bytes, Limit: ${limit} bytes`);
-          }
-          await quotaRepo.upsertAdd(uploadedBy, limit, result.size)
-            .catch((err) => console.error('[file-service] quota update failed:', err));
-        }
-
         const repo = createFileRepo(db);
         await repo.create({
           id:          result.publicId,
@@ -130,6 +181,10 @@ export function createFileService(
           uploadedBy:  uploadedBy ?? null,
           pageId:      null
         }).catch((err) => console.error('[file-service] DB insert failed:', err));
+
+        if (uploadedBy) {
+          await incrementQuota(uploadedBy, result.size, quotaLimit);
+        }
       }
 
       await publisher.publish({
@@ -140,26 +195,32 @@ export function createFileService(
     },
 
     async delete(publicId: string, deletedBy?: string): Promise<DeleteResult> {
+      // ── 1. Fetch file metadata before deletion (for quota release) ────────
       let contentType: string | null = null;
-      let fileSize    = 0;
+      let fileSize                   = 0;
+      let actualUploader: string | null = null;
 
       if (db) {
         const repo   = createFileRepo(db);
         const record = await repo.findById(publicId).catch(() => null);
-        contentType  = record?.contentType ?? null;
-        fileSize     = record?.size ?? 0;
+        contentType     = record?.contentType  ?? null;
+        fileSize        = record?.size         ?? 0;
+        actualUploader  = record?.uploadedBy   ?? null;
       }
 
+      // ── 2. Delete from Cloudinary ─────────────────────────────────────────
       await deleteFromCloudinary(publicId, cloudName, apiKey, apiSecret, contentType);
 
+      // ── 3. Remove DB record + release quota ───────────────────────────────
       if (db) {
         const repo = createFileRepo(db);
         await repo.delete(publicId)
           .catch((err) => console.error('[file-service] DB delete failed:', err));
 
-        if (deletedBy && fileSize > 0) {
+        const releaseFor = actualUploader ?? deletedBy;
+        if (releaseFor && fileSize > 0) {
           const quotaRepo = createQuotaRepo(db);
-          await quotaRepo.upsertAdd(deletedBy, DEFAULT_QUOTA_BYTES, -fileSize)
+          await quotaRepo.upsertAdd(releaseFor, DEFAULT_QUOTA_BYTES, -fileSize)
             .catch((err) => console.error('[file-service] quota release failed:', err));
         }
       }

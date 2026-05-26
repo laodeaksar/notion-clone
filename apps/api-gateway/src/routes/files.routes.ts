@@ -458,6 +458,25 @@ fileRoutes.get('/files/*/download', async (c) => {
 });
 
 /**
+ * GET /files/quota
+ *
+ * Returns the authenticated user's storage quota: used bytes, limit, and
+ * remaining bytes. Proxies to the file-service which owns quota state.
+ *
+ * Errors:
+ *   401 — not authenticated
+ *   503 — file-service unavailable
+ */
+fileRoutes.get('/files/quota', requireAuth, async (c) => {
+  const fileUrl    = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const authHeader = c.req.header('Authorization') ?? '';
+  const { data, status } = await proxyJson(fileUrl, '/quota', {
+    headers: { Authorization: authHeader }
+  });
+  return c.json(data, status as any);
+});
+
+/**
  * GET /files/*
  *
  * Returns a single file's full metadata from the database by its R2 key.

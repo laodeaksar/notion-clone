@@ -2,8 +2,12 @@ import * as v from 'valibot';
 import { RegisterSchema, LoginSchema } from '../types/auth.types';
 import { createUserRepo } from '../repository/user.repo';
 import { createLockoutStore, LOCKOUT_THRESHOLD } from '../repository/lockout.repo';
+import { userStorageQuotas } from '@workspace/db';
 import type { Db } from '@workspace/db';
 import type { PublicUser } from '../types/auth.types';
+
+/** Default per-user storage quota: 100 MB (mirrors file-service config) */
+const DEFAULT_QUOTA_BYTES = 100 * 1024 * 1024;
 
 /** SHA-256 password hash using Web Crypto API (CF Workers compatible) */
 async function hashPassword(password: string): Promise<string> {
@@ -68,6 +72,20 @@ export function createAuthService(
         ...input,
         passwordHash: await hashPassword(input.password)
       });
+
+      // Create default quota row eagerly so the user starts with a clean slate.
+      // ON CONFLICT DO NOTHING makes this idempotent if called twice.
+      await db
+        .insert(userStorageQuotas)
+        .values({
+          userId:     user.id,
+          usedBytes:  0,
+          limitBytes: DEFAULT_QUOTA_BYTES,
+          updatedAt:  new Date()
+        })
+        .onConflictDoNothing()
+        .catch((err) => console.error('[auth-service] quota init failed:', err));
+
       return { id: user.id, email: user.email, name: user.name };
     },
 
