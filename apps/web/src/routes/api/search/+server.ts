@@ -1,4 +1,4 @@
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export async function GET(event: RequestEvent) {

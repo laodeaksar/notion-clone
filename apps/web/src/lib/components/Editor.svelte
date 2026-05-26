@@ -10,7 +10,7 @@
   import { HocuspocusProvider } from '@hocuspocus/provider';
   import * as Y from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
-  import { PUBLIC_HOCUSPOCUS_URL } from '$env/dynamic/public';
+  import { PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
 
   interface PageData {
     page?: { id: string; title?: string } | null;

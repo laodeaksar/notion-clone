@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 
 interface PageRecord {
   id:       string;

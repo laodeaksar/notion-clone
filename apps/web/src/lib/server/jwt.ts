@@ -1,4 +1,4 @@
-import { JWT_SECRET } from '$env/dynamic/private';
+import { JWT_SECRET } from '$env/static/private';
 
 /**
  * Signs a short-lived JWT for internal server-to-server calls.

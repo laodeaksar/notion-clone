@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
-import { JWT_SECRET } from '$env/dynamic/private';
+import { JWT_SECRET } from '$env/static/private';
 
 interface JWTPayload {
   sub:   string;

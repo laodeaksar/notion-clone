@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 
 export async function POST({ cookies, fetch }: RequestEvent) {
   const token = cookies.get('token');

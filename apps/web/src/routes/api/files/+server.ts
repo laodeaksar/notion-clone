@@ -1,4 +1,4 @@
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 import { signServerJWT } from '$lib/server/jwt';
 import type { RequestEvent } from '@sveltejs/kit';
 
