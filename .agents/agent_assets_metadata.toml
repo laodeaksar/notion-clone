@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "f_lRwzK357uYQZ_57vWWi"
+uri = "file://docs/deploy-cloudflare-pages.md"
+type = "text"
+title = "Deploy Cloudflare Pages via GitHub"
