@@ -9,6 +9,7 @@
   import Image from '@tiptap/extension-image';
   import { HocuspocusProvider } from '@hocuspocus/provider';
   import * as Y from 'yjs';
+  import { IndexeddbPersistence } from 'y-indexeddb';
   import { PUBLIC_HOCUSPOCUS_URL } from '$env/dynamic/public';
 
   interface PageData {
@@ -18,10 +19,11 @@
 
   let { data }: { data: PageData } = $props();
 
-  let editorContainer: HTMLDivElement | null = null;
-  let fileInput: HTMLInputElement | null     = null;
-  let editor: Editor | null                  = null;
-  let provider: HocuspocusProvider | null   = null;
+  let editorContainer: HTMLDivElement | null      = null;
+  let fileInput: HTMLInputElement | null           = null;
+  let editor: Editor | null                        = null;
+  let provider: HocuspocusProvider | null         = null;
+  let persistence: IndexeddbPersistence | null    = null;
 
   let showSlashMenu = $state(false);
   let activeIndex   = $state(0);
@@ -145,11 +147,16 @@
   onMount(() => {
     initIdentity();
 
-    const ydoc = new Y.Doc();
+    const pageId = data.page?.id || 'page';
+    const ydoc   = new Y.Doc();
+
+    // Persist document locally in IndexedDB so content loads instantly offline
+    persistence = new IndexeddbPersistence(`page-${pageId}`, ydoc);
+
     provider = new HocuspocusProvider({
       url:      PUBLIC_HOCUSPOCUS_URL as string,
       document: ydoc,
-      name:     data.page?.id || 'page'
+      name:     pageId
     });
 
     const SlashMenuKeyboard = Extension.create({
@@ -198,6 +205,7 @@
   });
 
   onDestroy(() => {
+    persistence?.destroy();
     provider?.destroy();
     editor?.destroy();
   });

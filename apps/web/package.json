@@ -26,8 +26,10 @@
     "@tiptap/starter-kit": "^3.0.0",
     "@workspace/shared": "workspace:*",
     "browser-image-compression": "^2.0.2",
+    "idb-keyval": "^6.2.4",
     "svelte": "^5.0.0",
     "tailwindcss": "^4.3.0",
+    "y-indexeddb": "^9.0.12",
     "yjs": "^13.0.0",
     "zod": "^3.22.2"
   },

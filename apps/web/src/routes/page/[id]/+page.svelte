@@ -5,6 +5,7 @@
   import { invalidate } from '$app/navigation';
   import { scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { enqueue } from '$lib/offline/queue';
   import type { PageData } from './$types';
 
   interface Ancestor { id: string; title: string }
@@ -30,6 +31,18 @@
     const next = titleValue.trim() || 'Untitled';
     if (next === savedTitle) return;
     saving = true; saveError = false;
+
+    // Offline: queue the mutation optimistically and return
+    if (!navigator.onLine) {
+      enqueue({
+        url:    `/api/pages/${pageId}`,
+        method: 'PUT',
+        body:   JSON.stringify({ title: next })
+      });
+      saving = false;
+      return;
+    }
+
     try {
       const res = await fetch(`/api/pages/${pageId}`, {
         method:  'PUT',
@@ -39,8 +52,17 @@
       if (!res.ok) throw new Error();
       await invalidate('app:pages');
     } catch {
-      saveError = true;
-      titleValue = savedTitle;
+      if (!navigator.onLine) {
+        // Lost connection mid-request — queue it
+        enqueue({
+          url:    `/api/pages/${pageId}`,
+          method: 'PUT',
+          body:   JSON.stringify({ title: next })
+        });
+      } else {
+        saveError = true;
+        titleValue = savedTitle;
+      }
     } finally { saving = false; }
   }
 

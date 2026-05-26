@@ -1,6 +1,9 @@
 <script lang="ts">
   import '../lib/styles/globals.css';
   import Sidebar from '$lib/components/Sidebar.svelte';
+  import OfflineBanner from '$lib/components/OfflineBanner.svelte';
+  import { initQueue } from '$lib/offline/queue';
+  import { onMount } from 'svelte';
   import type { LayoutData } from './$types';
   import type { Snippet } from 'svelte';
 
@@ -9,6 +12,8 @@
   let user  = $derived(data.user ?? null);
   let pages = $derived(data.pages ?? []);
 
+  onMount(() => initQueue());
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/auth';
@@ -16,6 +21,9 @@
 </script>
 
 <div class="flex h-screen flex-col overflow-hidden bg-slate-50">
+
+  <!-- Offline / sync status banner (shown at the very top) -->
+  <OfflineBanner />
 
   {#if user}
     <!-- Top nav -->
