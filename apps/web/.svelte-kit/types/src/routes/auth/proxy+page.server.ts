@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 
 export const load = ({ locals }: Parameters<PageServerLoad>[0]) => {
   if (locals.user) throw redirect(302, '/');

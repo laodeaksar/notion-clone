@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["web", "nodejs-22"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -70,6 +70,7 @@ externalPort = 3000
 [[ports]]
 localPort = 8083
 externalPort = 3001
+exposeLocalhost = true
 
 [[ports]]
 localPort = 8084

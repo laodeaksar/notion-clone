@@ -38,8 +38,6 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
-	export const API_GATEWAY_URL: string;
-	export const JWT_SECRET: string;
 	export const npm_command: string;
 	export const COLORTERM: string;
 	export const REPL_OWNER: string;
@@ -117,6 +115,7 @@ declare module '$env/static/private' {
 	export const NODE_PATH: string;
 	export const PGHOST: string;
 	export const npm_package_json: string;
+	export const API_GATEWAY_URL: string;
 	export const XDG_DATA_DIRS: string;
 	export const REPL_IDENTITY_KEY: string;
 	export const REPLIT_HELIUM_ENABLED: string;
@@ -124,6 +123,7 @@ declare module '$env/static/private' {
 	export const npm_config_node_gyp: string;
 	export const DOCKER_CONFIG: string;
 	export const GLIBC_TUNABLES: string;
+	export const JWT_SECRET: string;
 	export const npm_config_registry: string;
 	export const REPL_PUBKEYS: string;
 	export const npm_node_execpath: string;
@@ -218,8 +218,6 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		API_GATEWAY_URL: string;
-		JWT_SECRET: string;
 		npm_command: string;
 		COLORTERM: string;
 		REPL_OWNER: string;
@@ -297,6 +295,7 @@ declare module '$env/dynamic/private' {
 		NODE_PATH: string;
 		PGHOST: string;
 		npm_package_json: string;
+		API_GATEWAY_URL: string;
 		XDG_DATA_DIRS: string;
 		REPL_IDENTITY_KEY: string;
 		REPLIT_HELIUM_ENABLED: string;
@@ -304,6 +303,7 @@ declare module '$env/dynamic/private' {
 		npm_config_node_gyp: string;
 		DOCKER_CONFIG: string;
 		GLIBC_TUNABLES: string;
+		JWT_SECRET: string;
 		npm_config_registry: string;
 		REPL_PUBKEYS: string;
 		npm_node_execpath: string;

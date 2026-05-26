@@ -1,6 +1,6 @@
 // @ts-nocheck
 import type { LayoutServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/dynamic/private';
+import { API_GATEWAY_URL } from '$env/static/private';
 
 export const load = async ({ locals, cookies, depends }: Parameters<LayoutServerLoad>[0]) => {
   depends('app:pages');
