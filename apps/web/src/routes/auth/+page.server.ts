@@ -1,13 +1,14 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 
 export const load: PageServerLoad = ({ locals }) => {
   if (locals.user) throw redirect(302, '/');
 };
 
 export const actions: Actions = {
-  login: async ({ request, cookies, fetch }) => {
+  login: async ({ request, cookies, fetch, platform }) => {
+    const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
     const email    = data.get('email')?.toString().trim()  ?? '';
     const password = data.get('password')?.toString()      ?? '';
@@ -40,7 +41,8 @@ export const actions: Actions = {
     throw redirect(302, '/');
   },
 
-  register: async ({ request, cookies, fetch }) => {
+  register: async ({ request, cookies, fetch, platform }) => {
+    const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
     const email    = data.get('email')?.toString().trim()  ?? '';
     const password = data.get('password')?.toString()      ?? '';

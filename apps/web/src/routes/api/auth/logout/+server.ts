@@ -1,8 +1,9 @@
+import { getEnv } from '$lib/server/env';
 import type { RequestEvent } from '@sveltejs/kit';
-import { API_GATEWAY_URL } from '$env/static/private';
 
-export async function POST({ cookies, fetch }: RequestEvent) {
-  const token = cookies.get('token');
+export async function POST({ cookies, fetch, platform }: RequestEvent) {
+  const token           = cookies.get('token');
+  const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
 
   if (token) {
     await fetch(`${API_GATEWAY_URL}/auth/logout`, {

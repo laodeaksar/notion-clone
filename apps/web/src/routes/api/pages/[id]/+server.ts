@@ -1,15 +1,16 @@
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 import { signServerJWT } from '$lib/server/jwt';
 import type { RequestEvent } from '@sveltejs/kit';
 
 function getToken(event: RequestEvent): Promise<string> {
   const userToken = event.cookies.get('token');
   if (userToken) return Promise.resolve(userToken);
-  return signServerJWT();
+  return signServerJWT(getEnv(event.platform, 'JWT_SECRET'));
 }
 
 export async function PUT(event: RequestEvent) {
-  const token = await getToken(event);
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const id    = event.params.id;
   const json  = await event.request.json().catch(() => null);
   if (!json) return new Response(JSON.stringify({ error: 'Invalid body' }), { status: 400 });
@@ -24,7 +25,8 @@ export async function PUT(event: RequestEvent) {
 }
 
 export async function DELETE(event: RequestEvent) {
-  const token = await getToken(event);
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const id    = event.params.id;
 
   const res  = await fetch(`${API_GATEWAY_URL}/pages/${id}`, {

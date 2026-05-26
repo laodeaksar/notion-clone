@@ -1,17 +1,18 @@
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 import { signServerJWT } from '$lib/server/jwt';
 import type { RequestEvent } from '@sveltejs/kit';
 
 function getToken(event: RequestEvent): Promise<string> {
   const userToken = event.cookies.get('token');
   if (userToken) return Promise.resolve(userToken);
-  return signServerJWT();
+  return signServerJWT(getEnv(event.platform, 'JWT_SECRET'));
 }
 
 export async function POST(event: RequestEvent) {
-  const { request } = event;
-  const token       = await getToken(event);
-  const contentType = request.headers.get('content-type') ?? '';
+  const { request }     = event;
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
+  const contentType     = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('multipart/form-data')) {
     const form = await request.formData();

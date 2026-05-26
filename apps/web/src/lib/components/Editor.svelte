@@ -10,11 +10,11 @@
   import { HocuspocusProvider } from '@hocuspocus/provider';
   import * as Y from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
-  import { PUBLIC_HOCUSPOCUS_URL } from '$env/static/public';
 
   interface PageData {
-    page?: { id: string; title?: string } | null;
-    user?: { id: string; email: string; name: string | null } | null;
+    page?:          { id: string; title?: string } | null;
+    user?:          { id: string; email: string; name: string | null } | null;
+    hocuspocusUrl?: string;
   }
 
   let { data }: { data: PageData } = $props();
@@ -154,7 +154,7 @@
     persistence = new IndexeddbPersistence(`page-${pageId}`, ydoc);
 
     provider = new HocuspocusProvider({
-      url:      PUBLIC_HOCUSPOCUS_URL as string,
+      url:      data.hocuspocusUrl ?? 'ws://localhost:1234',
       document: ydoc,
       name:     pageId
     });

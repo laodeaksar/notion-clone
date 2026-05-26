@@ -1,11 +1,9 @@
-import { JWT_SECRET } from '$env/static/private';
-
 /**
  * Signs a short-lived JWT for internal server-to-server calls.
- * Used when there is no user token available (e.g. background requests).
+ * Accepts the secret explicitly so the caller controls where it reads from
+ * (platform.env on Cloudflare, process.env on Node/Replit).
  */
-export async function signServerJWT(): Promise<string> {
-  const secret = JWT_SECRET;
+export async function signServerJWT(secret: string): Promise<string> {
   const encoder = new TextEncoder();
 
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))

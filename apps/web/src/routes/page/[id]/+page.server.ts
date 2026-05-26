@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 
 interface PageRecord {
   id:       string;
@@ -8,12 +8,12 @@ interface PageRecord {
   parentId: string | null;
 }
 
-export const load: PageServerLoad = async ({ params, fetch }) => {
+export const load: PageServerLoad = async ({ params, fetch, platform }) => {
   const { id } = params;
   if (!id) error(400, 'Page ID is required');
 
-  // Fetch the page and its ancestors in parallel — single round-trip each,
-  // replaces the old sequential N-fetch waterfall loop.
+  const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
+
   const [pageRes, ancestorsRes] = await Promise.all([
     fetch(`${API_GATEWAY_URL}/pages/${id}`),
     fetch(`${API_GATEWAY_URL}/pages/${id}/ancestors`)

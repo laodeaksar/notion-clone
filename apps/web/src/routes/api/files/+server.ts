@@ -1,17 +1,18 @@
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 import { signServerJWT } from '$lib/server/jwt';
 import type { RequestEvent } from '@sveltejs/kit';
 
 function getToken(event: RequestEvent): Promise<string> {
   const userToken = event.cookies.get('token');
   if (userToken) return Promise.resolve(userToken);
-  return signServerJWT();
+  return signServerJWT(getEnv(event.platform, 'JWT_SECRET'));
 }
 
 export async function POST(event: RequestEvent) {
-  const { request } = event;
-  const token       = await getToken(event);
-  const contentType = request.headers.get('content-type') ?? '';
+  const { request }     = event;
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
+  const contentType     = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('multipart/form-data')) {
     const form = await request.formData();
@@ -37,8 +38,9 @@ export async function POST(event: RequestEvent) {
 }
 
 export async function GET(event: RequestEvent) {
-  const { url } = event;
-  const token   = await getToken(event);
+  const { url }         = event;
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const folder  = url.searchParams.get('folder') ?? undefined;
   const cursor  = url.searchParams.get('cursor') ?? undefined;
   const limit   = url.searchParams.get('limit')  ?? '50';
@@ -55,8 +57,9 @@ export async function GET(event: RequestEvent) {
 }
 
 export async function DELETE(event: RequestEvent) {
-  const { url } = event;
-  const token   = await getToken(event);
+  const { url }         = event;
+  const token           = await getToken(event);
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const publicId = url.searchParams.get('publicId');
   if (!publicId) {
     return new Response(JSON.stringify({ error: 'Missing publicId' }), { status: 400 });

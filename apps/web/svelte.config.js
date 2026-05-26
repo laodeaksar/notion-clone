@@ -1,15 +1,12 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapterCloudflare from '@sveltejs/adapter-cloudflare';
+import adapterNode from '@sveltejs/adapter-node';
 
-// adapter-auto detects the build environment:
-//   - Cloudflare Pages (CF_PAGES=1)  → @sveltejs/adapter-cloudflare
-//   - Node.js / Replit autoscale      → @sveltejs/adapter-node
-// This single config works for both targets without modification.
 export default {
   kit: {
-    adapter: adapter(),
+    adapter: process.env.CF_PAGES ? adapterCloudflare() : adapterNode(),
     files: {
       routes: 'src/routes',
-      lib: 'src/lib'
+      lib:    'src/lib'
     }
   }
 };

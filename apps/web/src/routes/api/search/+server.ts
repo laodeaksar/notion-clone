@@ -1,4 +1,4 @@
-import { API_GATEWAY_URL } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export async function GET(event: RequestEvent) {
@@ -10,6 +10,7 @@ export async function GET(event: RequestEvent) {
     });
   }
 
+  const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const q   = event.url.searchParams.get('q') ?? '';
   const res = await fetch(`${API_GATEWAY_URL}/search?q=${encodeURIComponent(q)}`, {
     headers: { Authorization: `Bearer ${token}` }

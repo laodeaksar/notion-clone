@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
-import { JWT_SECRET } from '$env/static/private';
+import { getEnv } from '$lib/server/env';
 
 interface JWTPayload {
   sub:   string;
@@ -51,6 +51,7 @@ async function verifyJWT(token: string, secret: string): Promise<JWTPayload | nu
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+  const JWT_SECRET = getEnv(event.platform, 'JWT_SECRET');
   const token = event.cookies.get('token');
 
   if (token) {
