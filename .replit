@@ -92,6 +92,6 @@ localPort = 9101
 externalPort = 5173
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd /home/runner/workspace/apps/web && node .svelte-kit/output/server/index.js"]
-build = ["bash", "-c", "cd /home/runner/workspace && pnpm --filter @workspace/web build"]
+deploymentTarget = "vm"
+run = ["bash", "start-prod.sh"]
+build = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm --filter @workspace/web build"]
