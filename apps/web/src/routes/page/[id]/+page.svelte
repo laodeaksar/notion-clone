@@ -107,7 +107,7 @@
       <div class="relative shrink-0">
         <button
           type="button"
-          onclick|stopPropagation={() => { pickerOpen = !pickerOpen; }}
+          onclick={(e) => { e.stopPropagation(); pickerOpen = !pickerOpen; }}
           class="flex h-10 w-10 items-center justify-center rounded-xl text-2xl
                  hover:bg-slate-100 transition-colors {pickerOpen ? 'bg-slate-100' : ''}"
           title="Change page icon"
@@ -118,7 +118,7 @@
 
         <!-- Picker popover -->
         {#if pickerOpen}
-          <div class="absolute left-0 top-12 z-50" onclick|stopPropagation>
+          <div class="absolute left-0 top-12 z-50" onclick={(e) => e.stopPropagation()}>
             <EmojiPicker
               current={$pageIcons[pageId] ?? ''}
               onselect={pickEmoji}
