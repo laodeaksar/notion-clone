@@ -54,8 +54,9 @@ jobs:
       - name: Deploy auth-service
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:       ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:      ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
           workingDirectory: services/auth-service
           secrets: |
             DATABASE_URL
@@ -93,8 +94,9 @@ jobs:
       - name: Deploy page-service
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
           workingDirectory: services/page-service
           secrets: |
             DATABASE_URL
@@ -130,8 +132,9 @@ jobs:
       - name: Deploy block-service
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
           workingDirectory: services/block-service
           secrets: |
             DATABASE_URL
@@ -167,8 +170,9 @@ jobs:
       - name: Deploy file-service
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
           workingDirectory: services/file-service
           secrets: |
             DATABASE_URL
@@ -211,8 +215,9 @@ jobs:
       - name: Deploy api-gateway
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
           workingDirectory: apps/api-gateway
           secrets: |
             DATABASE_URL
@@ -260,6 +265,7 @@ jobs:
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
           workingDirectory: apps/web
           command: >
             pages deploy .svelte-kit/cloudflare
