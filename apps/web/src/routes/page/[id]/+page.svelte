@@ -3,6 +3,8 @@
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   import { pageIcons } from '$lib/stores/pageIcons';
   import { invalidate } from '$app/navigation';
+  import { scale } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import type { PageData } from './$types';
 
   interface Ancestor { id: string; title: string }
@@ -118,7 +120,11 @@
 
         <!-- Picker popover -->
         {#if pickerOpen}
-          <div class="absolute left-0 top-12 z-50" onclick={(e) => e.stopPropagation()}>
+          <div
+            class="absolute left-0 top-12 z-50"
+            onclick={(e) => e.stopPropagation()}
+            transition:scale={{ duration: 150, start: 0.92, opacity: 0, easing: cubicOut }}
+          >
             <EmojiPicker
               current={$pageIcons[pageId] ?? ''}
               onselect={pickEmoji}
