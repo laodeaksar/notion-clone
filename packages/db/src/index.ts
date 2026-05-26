@@ -1,5 +1,5 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
 export * from './schema';
@@ -15,12 +15,14 @@ export {
 } from 'drizzle-orm';
 
 /**
- * Creates a per-request Drizzle client backed by node-postgres (pg).
- * Works with any standard PostgreSQL instance including Replit's built-in DB.
+ * Creates a per-request Drizzle client backed by Neon's HTTP driver.
+ *
+ * Must be called inside a request handler — never at module scope —
+ * so that Cloudflare Workers env bindings are available when needed.
  */
 export function createDb(databaseUrl: string) {
-  const pool = new Pool({ connectionString: databaseUrl, ssl: false });
-  return drizzle(pool, { schema });
+  const sql = neon(databaseUrl);
+  return drizzle(sql, { schema });
 }
 
 export type Db = ReturnType<typeof createDb>;

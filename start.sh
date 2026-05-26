@@ -3,6 +3,14 @@ set -e
 
 export JWT_SECRET="${JWT_SECRET:-dev-secret}"
 
+# Use Neon database if NEON_DATABASE_URL is provided, otherwise fall back to local Postgres
+if [ -n "$NEON_DATABASE_URL" ]; then
+  echo "Using Neon database..."
+  export ACTIVE_DATABASE_URL="$NEON_DATABASE_URL"
+else
+  export ACTIVE_DATABASE_URL="${DATABASE_URL:-}"
+fi
+
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
   echo "Installing dependencies..."
@@ -10,9 +18,9 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Run database migrations
-if [ -n "$DATABASE_URL" ]; then
+if [ -n "$ACTIVE_DATABASE_URL" ]; then
   echo "Running database migrations..."
-  pnpm --filter @workspace/db migrate || echo "Migration skipped or already up to date."
+  DATABASE_URL="$ACTIVE_DATABASE_URL" pnpm --filter @workspace/db migrate || echo "Migration skipped or already up to date."
   echo "Migrations done."
 else
   echo "DATABASE_URL not set, skipping migrations."
@@ -36,7 +44,7 @@ fi
 write_dev_vars() {
   local dir=$1
   cat > "$dir/.dev.vars" <<EOF
-DATABASE_URL=${DATABASE_URL:-}
+DATABASE_URL=${ACTIVE_DATABASE_URL:-}
 JWT_SECRET=${JWT_SECRET:-dev-secret}
 GATEWAY_ORIGIN=${GATEWAY_ORIGIN:-http://localhost:8080}
 AUTH_REQUIRED=${AUTH_REQUIRED:-true}
