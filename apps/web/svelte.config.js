@@ -1,13 +1,8 @@
-import adapter from '@sveltejs/adapter-cloudflare';
+import adapter from '@sveltejs/adapter-node';
 
 export default {
   kit: {
-    adapter: adapter({
-      routes: {
-        include: ['/*'],
-        exclude: ['<all>']
-      }
-    }),
+    adapter: adapter(),
     files: {
       routes: 'src/routes',
       lib: 'src/lib'
