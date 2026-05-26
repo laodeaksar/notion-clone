@@ -32,12 +32,24 @@
   });
 
   // ── Tree derived from flat list ────────────────────────────────────────────
-  let tree = $derived(buildTree(pages, null));
+  // O(n) build: group pages into a Map once, then attach children in one pass.
+  // The previous O(n²) version re-scanned the full array at every tree level.
+  let tree = $derived(buildTree(pages));
 
-  function buildTree(flat: Page[], parentId: string | null): PageNode[] {
-    return flat
-      .filter(p => p.parentId === parentId)
-      .map(p => ({ ...p, children: buildTree(flat, p.id) }));
+  function buildTree(flat: Page[]): PageNode[] {
+    const childMap = new Map<string | null, PageNode[]>();
+    for (const p of flat) {
+      const key = p.parentId ?? null;
+      if (!childMap.has(key)) childMap.set(key, []);
+      childMap.get(key)!.push({ ...p, children: [] });
+    }
+    function attach(parentId: string | null): PageNode[] {
+      return (childMap.get(parentId) ?? []).map(node => ({
+        ...node,
+        children: attach(node.id)
+      }));
+    }
+    return attach(null);
   }
 
   // ── UI state ───────────────────────────────────────────────────────────────

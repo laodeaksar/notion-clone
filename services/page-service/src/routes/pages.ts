@@ -31,6 +31,14 @@ export const pageRoutes = new Hono<HonoEnv>()
     }
   })
 
+  .get('/:id/ancestors', async (c) => {
+    const userId    = c.var.userId;
+    const db        = createDb(c.env.DATABASE_URL);
+    const svc       = createPageService(db, c.env.EVENTS_QUEUE);
+    const ancestors = await svc.getAncestors(c.req.param('id'), userId);
+    return c.json({ ancestors });
+  })
+
   .get('/:id', async (c) => {
     const userId = c.var.userId;
     const db     = createDb(c.env.DATABASE_URL);

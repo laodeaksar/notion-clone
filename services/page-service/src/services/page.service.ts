@@ -20,6 +20,13 @@ export function createPageService(db: Db, eventsQueue?: CfQueue<PageEvent> | nul
       return pageRepo.findById(id, userId);
     },
 
+    /**
+     * Returns ancestor pages in root-first order using a single recursive CTE.
+     */
+    async getAncestors(id: string, userId: string): Promise<Page[]> {
+      return pageRepo.findAncestors(id, userId);
+    },
+
     async createPage(input: v.InferInput<typeof PageInputSchema>, userId: string): Promise<Page> {
       const page = await pageRepo.create(input, userId);
       await publisher.publish({
