@@ -30,7 +30,10 @@
     "deploy:block": "pnpm --filter @workspace/block-service deploy",
     "deploy:page": "pnpm --filter @workspace/page-service deploy",
     "deploy:file": "pnpm --filter @workspace/file-service deploy",
-    "deploy:web": "pnpm --filter @workspace/web deploy:pages"
+    "deploy:web": "pnpm --filter @workspace/web deploy:pages",
+
+    "deploy": "bash deploy.sh all",
+    "deploy:services": "bash deploy.sh services"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
