@@ -72,6 +72,7 @@ jobs:
           GATEWAY_ORIGIN:     ${{ vars.GATEWAY_ORIGIN }}
           AUTH_REQUIRED:      ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS:    ${{ vars.ALLOWED_ORIGINS }}
+          # auth-service does not use INTERNAL_SECRET (it validates bearer tokens, not x-user-id)
 
   # ── 2. page-service ──────────────────────────────────────────────────────────
   deploy-page:
@@ -101,15 +102,17 @@ jobs:
           secrets: |
             DATABASE_URL
             JWT_SECRET
+            INTERNAL_SECRET
             GATEWAY_ORIGIN
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
-          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
-          JWT_SECRET:      ${{ secrets.JWT_SECRET }}
-          GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
-          AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
-          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
+          JWT_SECRET:       ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET:  ${{ secrets.INTERNAL_SECRET }}
+          GATEWAY_ORIGIN:   ${{ vars.GATEWAY_ORIGIN }}
+          AUTH_REQUIRED:    ${{ vars.AUTH_REQUIRED }}
+          ALLOWED_ORIGINS:  ${{ vars.ALLOWED_ORIGINS }}
 
   # ── 3. block-service ─────────────────────────────────────────────────────────
   deploy-block:
@@ -139,15 +142,17 @@ jobs:
           secrets: |
             DATABASE_URL
             JWT_SECRET
+            INTERNAL_SECRET
             GATEWAY_ORIGIN
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
-          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
-          JWT_SECRET:      ${{ secrets.JWT_SECRET }}
-          GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
-          AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
-          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
+          JWT_SECRET:       ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET:  ${{ secrets.INTERNAL_SECRET }}
+          GATEWAY_ORIGIN:   ${{ vars.GATEWAY_ORIGIN }}
+          AUTH_REQUIRED:    ${{ vars.AUTH_REQUIRED }}
+          ALLOWED_ORIGINS:  ${{ vars.ALLOWED_ORIGINS }}
 
   # ── 4. file-service ──────────────────────────────────────────────────────────
   deploy-file:
@@ -177,6 +182,7 @@ jobs:
           secrets: |
             DATABASE_URL
             JWT_SECRET
+            INTERNAL_SECRET
             CLOUDINARY_CLOUD_NAME
             CLOUDINARY_API_KEY
             CLOUDINARY_API_SECRET
@@ -186,6 +192,7 @@ jobs:
         env:
           DATABASE_URL:          ${{ secrets.DATABASE_URL }}
           JWT_SECRET:            ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET:       ${{ secrets.INTERNAL_SECRET }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY:    ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
@@ -222,12 +229,14 @@ jobs:
           secrets: |
             DATABASE_URL
             JWT_SECRET
+            INTERNAL_SECRET
             GATEWAY_ORIGIN
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
           DATABASE_URL:    ${{ secrets.DATABASE_URL }}
           JWT_SECRET:      ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
           GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
           AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}

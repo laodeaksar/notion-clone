@@ -3,6 +3,7 @@ import type { HonoEnv } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
+import { serviceHeaders } from '../lib/headers';
 
 /**
  * GET /search?q=<term>
@@ -16,13 +17,11 @@ import { requireAuth } from '../middleware/auth';
 export const searchRoutes = new Hono<HonoEnv>();
 
 searchRoutes.get('/search', requireAuth, async (c) => {
-  const pageUrl   = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
-  const q         = c.req.query('q') ?? '';
-  const userId    = (c.var.jwtPayload as { sub?: string })?.sub ?? '';
-  const userEmail = (c.var.jwtPayload as { email?: string })?.email ?? '';
+  const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const q       = c.req.query('q') ?? '';
   const { data, status } = await proxyJson(pageUrl, '/search', {
     query:   { q },
-    headers: { 'x-user-id': userId, 'x-user-email': userEmail }
+    headers: serviceHeaders(c)
   });
   return c.json(data, status as any);
 });

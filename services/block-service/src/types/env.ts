@@ -2,9 +2,10 @@ import type { CfQueue } from '@workspace/shared';
 import type { BlockEvent } from '@workspace/shared';
 
 export type Bindings = {
-  DATABASE_URL:  string;
-  JWT_SECRET:    string;
-  EVENTS_QUEUE?: CfQueue<BlockEvent>;
+  DATABASE_URL:    string;
+  JWT_SECRET:      string;
+  INTERNAL_SECRET: string;
+  EVENTS_QUEUE?:   CfQueue<BlockEvent>;
 };
 
 export type Variables = {

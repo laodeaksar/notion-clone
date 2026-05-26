@@ -2,9 +2,10 @@ import type { CfQueue } from '@workspace/shared';
 import type { PageEvent } from '@workspace/shared';
 
 export type Bindings = {
-  DATABASE_URL:  string;
-  JWT_SECRET:    string;
-  EVENTS_QUEUE?: CfQueue<PageEvent>;
+  DATABASE_URL:    string;
+  JWT_SECRET:      string;
+  INTERNAL_SECRET: string;
+  EVENTS_QUEUE?:   CfQueue<PageEvent>;
 };
 
 export type Variables = {

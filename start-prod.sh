@@ -41,6 +41,7 @@ write_dev_vars() {
 DATABASE_URL=${ACTIVE_DATABASE_URL:-}
 JWT_SECRET=${JWT_SECRET:-dev-secret}
 BETTER_AUTH_SECRET="${JWT_SECRET:-dev-secret}-notion-clone-better-auth-2024"
+INTERNAL_SECRET=${INTERNAL_SECRET:?INTERNAL_SECRET env var is required in production}
 GATEWAY_ORIGIN=${GATEWAY_ORIGIN:-http://localhost:8080}
 AUTH_REQUIRED=${AUTH_REQUIRED:-true}
 PAGE_SERVICE_URL=${PAGE_SERVICE_URL:-http://localhost:8082}

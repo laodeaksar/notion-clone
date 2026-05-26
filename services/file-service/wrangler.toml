@@ -31,3 +31,4 @@ dead_letter_queue = "file-events-dlq"
 #   wrangler secret put CLOUDINARY_API_SECRET
 #   wrangler secret put JWT_SECRET
 #   wrangler secret put DATABASE_URL
+#   wrangler secret put INTERNAL_SECRET   ← must match the gateway's INTERNAL_SECRET

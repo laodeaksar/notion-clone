@@ -23,3 +23,4 @@ dead_letter_queue = "block-events-dlq"
 # Set before deploying:
 #   wrangler secret put DATABASE_URL
 #   wrangler secret put JWT_SECRET
+#   wrangler secret put INTERNAL_SECRET   ← must match the gateway's INTERNAL_SECRET

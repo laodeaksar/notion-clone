@@ -3,12 +3,13 @@ import * as v from 'valibot';
 // ─── Cloudflare / Bun Bindings ────────────────────────────────────────────────
 
 export type Bindings = {
-  JWT_SECRET:               string;
-  DATABASE_URL:             string;
-  PAGE_SERVICE_URL:         string;
-  AUTH_SERVICE_URL:         string;
-  BLOCK_SERVICE_URL:        string;
-  FILE_SERVICE_URL:         string;
+  JWT_SECRET:                string;
+  DATABASE_URL:              string;
+  PAGE_SERVICE_URL:          string;
+  AUTH_SERVICE_URL:          string;
+  BLOCK_SERVICE_URL:         string;
+  FILE_SERVICE_URL:          string;
+  INTERNAL_SECRET:           string;
   UPSTASH_REDIS_REST_URL?:   string;
   UPSTASH_REDIS_REST_TOKEN?: string;
 };
