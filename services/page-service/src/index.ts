@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { routes } from './routes/index';
+import { handlePageEvent } from './queue/handlers';
 import type { HonoEnv, Bindings } from './types/env';
 import type { CfMessageBatch, PageEvent } from '@workspace/shared';
 
@@ -31,15 +32,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
 
-  async queue(batch: CfMessageBatch<PageEvent>, _env: Bindings): Promise<void> {
+  async queue(batch: CfMessageBatch<PageEvent>, env: Bindings): Promise<void> {
     for (const msg of batch.messages) {
       try {
-        const event = msg.body;
-        console.log(`[page-service] queue: ${event.type}`, event.payload);
-        // TODO: add downstream handlers per event type, e.g.:
-        // page.created  → create default welcome block, notify collaborators
-        // page.updated  → update full-text search index
-        // page.deleted  → cascade-delete orphaned blocks, remove from search
+        await handlePageEvent(msg.body, env);
         msg.ack();
       } catch (err) {
         console.error('[page-service] queue processing error:', err);

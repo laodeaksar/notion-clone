@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { routes } from './routes/index';
+import { handleBlockEvent } from './queue/handlers';
 import type { HonoEnv, Bindings } from './types/env';
 import type { CfMessageBatch, BlockEvent } from '@workspace/shared';
 
@@ -31,15 +32,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
 
-  async queue(batch: CfMessageBatch<BlockEvent>, _env: Bindings): Promise<void> {
+  async queue(batch: CfMessageBatch<BlockEvent>, env: Bindings): Promise<void> {
     for (const msg of batch.messages) {
       try {
-        const event = msg.body;
-        console.log(`[block-service] queue: ${event.type}`, event.payload);
-        // TODO: add downstream handlers per event type, e.g.:
-        // block.created → update page word count / search index
-        // block.updated → sync to Hocuspocus real-time server
-        // block.deleted → remove from search index, decrement page block count
+        await handleBlockEvent(msg.body, env);
         msg.ack();
       } catch (err) {
         console.error('[block-service] queue processing error:', err);

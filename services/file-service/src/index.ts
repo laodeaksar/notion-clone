@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { routes } from './routes/index';
+import { handleFileEvent } from './queue/handlers';
 import type { HonoEnv, Bindings } from './types/env';
 import type { CfMessageBatch, FileEvent } from '@workspace/shared';
 
@@ -31,15 +32,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
 
-  async queue(batch: CfMessageBatch<FileEvent>, _env: Bindings): Promise<void> {
+  async queue(batch: CfMessageBatch<FileEvent>, env: Bindings): Promise<void> {
     for (const msg of batch.messages) {
       try {
-        const event = msg.body;
-        console.log(`[file-service] queue: ${event.type}`, event.payload);
-        // TODO: add downstream handlers per event type, e.g.:
-        // file.uploaded → generate thumbnail, run malware scan, update storage quota
-        // file.deleted  → invalidate CDN cache, reclaim storage quota
-        // file.moved    → update all page references to the old URL
+        await handleFileEvent(msg.body, env);
         msg.ack();
       } catch (err) {
         console.error('[file-service] queue processing error:', err);

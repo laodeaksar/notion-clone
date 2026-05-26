@@ -7,7 +7,7 @@ export JWT_SECRET="${JWT_SECRET:-dev-secret}"
 # Apply any pending database migrations before starting services
 if [ -n "$DATABASE_URL" ]; then
   echo "Running database migrations..."
-  pnpm --filter @workspace/db migrate
+  cd packages/db && node_modules/.bin/drizzle-kit migrate && cd ../..
   echo "Migrations done."
 else
   echo "DATABASE_URL not set, skipping migrations."
