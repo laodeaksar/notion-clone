@@ -18,6 +18,20 @@ else
   echo "DATABASE_URL not set, skipping migrations."
 fi
 
+# Build allowed origins: always include localhost + Replit dev domain if available
+REPLIT_ORIGIN=""
+if [ -n "$REPLIT_DEV_DOMAIN" ]; then
+  REPLIT_ORIGIN="https://${REPLIT_DEV_DOMAIN}"
+fi
+
+if [ -n "$ALLOWED_ORIGINS" ]; then
+  COMPUTED_ORIGINS="$ALLOWED_ORIGINS"
+elif [ -n "$REPLIT_ORIGIN" ]; then
+  COMPUTED_ORIGINS="http://localhost:5000,${REPLIT_ORIGIN}"
+else
+  COMPUTED_ORIGINS="http://localhost:5000"
+fi
+
 # Write .dev.vars for each wrangler service so env vars are available at runtime
 write_dev_vars() {
   local dir=$1
@@ -30,7 +44,7 @@ PAGE_SERVICE_URL=${PAGE_SERVICE_URL:-http://localhost:8082}
 AUTH_SERVICE_URL=${AUTH_SERVICE_URL:-http://localhost:8083}
 BLOCK_SERVICE_URL=${BLOCK_SERVICE_URL:-http://localhost:8081}
 FILE_SERVICE_URL=${FILE_SERVICE_URL:-http://localhost:8084}
-ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5000}
+ALLOWED_ORIGINS=${COMPUTED_ORIGINS}
 EOF
 }
 
