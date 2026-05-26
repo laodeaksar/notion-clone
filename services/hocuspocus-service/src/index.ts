@@ -1,12 +1,14 @@
 import { Server } from '@hocuspocus/server';
 import { Database } from '@hocuspocus/extension-database';
 import { Logger } from '@hocuspocus/extension-logger';
+import { Redis } from '@hocuspocus/extension-redis';
 import { verifyJWT } from './auth';
 import { fetchDocument, storeDocument } from './persistence';
 
 const PORT          = Number(process.env.PORT) || 1234;
 const SECRET        = process.env.JWT_SECRET   ?? '';
 const AUTH_REQUIRED = process.env.AUTH_REQUIRED !== 'false';
+const REDIS_URL     = process.env.REDIS_URL;
 
 const server = new Server({
   port: PORT,
@@ -30,7 +32,12 @@ const server = new Server({
         await storeDocument(documentName, state);
         console.log(`[hocuspocus:db] Stored "${documentName}" (${state.byteLength} bytes)`);
       }
-    })
+    }),
+
+    ...(REDIS_URL
+      ? [new Redis({ url: REDIS_URL })]
+      : []
+    )
   ],
 
   async onAuthenticate({ token }) {
@@ -56,4 +63,7 @@ const server = new Server({
 });
 
 server.listen();
-console.log(`[hocuspocus] WebSocket server listening on ws://0.0.0.0:${PORT}`);
+console.log(
+  `[hocuspocus] WebSocket server on ws://0.0.0.0:${PORT}` +
+  (REDIS_URL ? ' (Redis sync enabled)' : ' (single-instance mode)')
+);

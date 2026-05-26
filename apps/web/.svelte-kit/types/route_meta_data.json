@@ -9,6 +9,12 @@
 	"/api/files": [
 		"src/routes/api/files/+server.ts"
 	],
+	"/api/pages": [
+		"src/routes/api/pages/+server.ts"
+	],
+	"/api/pages/[id]": [
+		"src/routes/api/pages/[id]/+server.ts"
+	],
 	"/api/upload": [
 		"src/routes/api/upload/+server.ts"
 	],

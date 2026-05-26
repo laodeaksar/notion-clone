@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis/cloudflare';
+import { Redis } from '@upstash/redis';
 
 /** Max failed attempts before locking the account */
 export const LOCKOUT_THRESHOLD = 5;

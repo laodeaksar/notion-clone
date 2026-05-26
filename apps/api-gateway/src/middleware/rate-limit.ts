@@ -1,5 +1,5 @@
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis/cloudflare';
+import { Redis } from '@upstash/redis';
 import { createMiddleware } from 'hono/factory';
 import type { Bindings, HonoEnv, RateLimitResult } from '../types/gateway.types';
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, METRICS_SKIP } from '../config';
