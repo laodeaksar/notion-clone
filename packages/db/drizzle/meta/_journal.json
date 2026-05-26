@@ -36,6 +36,13 @@
       "when": 1779757191115,
       "tag": "0004_mute_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0005_add_search_index",
+      "breakpoints": true
     }
   ]
 }

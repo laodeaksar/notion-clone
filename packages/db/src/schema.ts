@@ -82,3 +82,24 @@ export const files = pgTable('files', {
   index('idx_files_uploader_created').on(t.uploadedBy, t.createdAt),
   index('idx_files_page_created').on(t.pageId, t.createdAt),
 ]);
+
+// ─── Full-Text Search Index ────────────────────────────────────────────────────
+// Stores extracted plain-text bodies for pages and blocks.
+// A GIN index using pg_trgm operators (created in migration 0005) powers
+// fast ILIKE queries over the body column without a sequential scan.
+//
+// entity_type: 'page'  → body = page title
+// entity_type: 'block' → body = text extracted recursively from content JSONB
+// entity_id  : unique — one row per page or block; upserted on every change
+// page_id    : always the owning page; used to bulk-delete on page.deleted
+
+export const searchIndex = pgTable('search_index', {
+  id:         varchar('id', { length: 36 }).primaryKey(),
+  entityType: varchar('entity_type', { length: 20 }).notNull(),
+  entityId:   varchar('entity_id', { length: 36 }).notNull().unique(),
+  pageId:     varchar('page_id', { length: 36 }).notNull(),
+  body:       text('body').notNull(),
+  updatedAt:  timestamp('updated_at').notNull()
+}, (t) => [
+  index('idx_search_index_page_id').on(t.pageId)
+]);
