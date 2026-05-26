@@ -1,5 +1,6 @@
 import {
   pgTable,
+  index,
   text,
   varchar,
   jsonb,
@@ -70,4 +71,14 @@ export const files = pgTable('files', {
                  .references(() => pages.id, { onDelete: 'set null' }),
   createdAt:   timestamp('created_at').notNull(),
   updatedAt:   timestamp('updated_at').notNull()
-});
+}, (t) => [
+  // Single-column indexes for point lookups and filter-only queries
+  index('idx_files_uploaded_by').on(t.uploadedBy),
+  index('idx_files_page_id').on(t.pageId),
+  index('idx_files_created_at').on(t.createdAt),
+  // Composite indexes cover the most common API patterns:
+  //   GET /files?uploadedBy=X  → filter + sort by createdAt (cursor pagination)
+  //   GET /files?pageId=X      → filter + sort by createdAt (cursor pagination)
+  index('idx_files_uploader_created').on(t.uploadedBy, t.createdAt),
+  index('idx_files_page_created').on(t.pageId, t.createdAt),
+]);
