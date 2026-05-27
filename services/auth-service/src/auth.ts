@@ -8,6 +8,7 @@ type AuthEnv = {
   BETTER_AUTH_SECRET?: string;
   ALLOWED_ORIGINS?:    string;
   GATEWAY_ORIGIN?:     string;
+  REPLIT_DEV_DOMAIN?:  string;
 };
 
 /**
@@ -37,7 +38,13 @@ export function createAuth(env: AuthEnv) {
   const extraOrigins = env.ALLOWED_ORIGINS
     ? env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
-  const trustedOrigins = [...new Set([...localOrigins, ...extraOrigins])];
+  // Auto-include Replit dev domain so the proxied preview works without
+  // needing ALLOWED_ORIGINS to be pre-populated at startup.
+  const replitDomain = env.REPLIT_DEV_DOMAIN ?? process.env.REPLIT_DEV_DOMAIN;
+  const replitOrigins = replitDomain
+    ? [`https://${replitDomain}`, `http://${replitDomain}`]
+    : [];
+  const trustedOrigins = [...new Set([...localOrigins, ...extraOrigins, ...replitOrigins])];
 
   return betterAuth({
     secret:   env.BETTER_AUTH_SECRET ?? 'dev-secret-notion-clone-change-in-prod',

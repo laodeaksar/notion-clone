@@ -13,8 +13,15 @@ import type { HonoEnv } from '../types/gateway.types';
  * In production the var MUST be set — the fallback will not match any real domain.
  */
 function parseAllowedOrigins(raw?: string): string[] {
-  if (!raw) return ['http://localhost:5000'];
-  return raw.split(',').map(o => o.trim()).filter(Boolean);
+  const base = ['http://localhost:5000'];
+  const extra = raw ? raw.split(',').map(o => o.trim()).filter(Boolean) : [];
+  // Auto-include Replit dev domain so the proxied preview works without
+  // needing ALLOWED_ORIGINS to be pre-populated at startup.
+  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
+  const replitOrigins = replitDomain
+    ? [`https://${replitDomain}`, `http://${replitDomain}`]
+    : [];
+  return [...new Set([...base, ...extra, ...replitOrigins])];
 }
 
 export const corsMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
