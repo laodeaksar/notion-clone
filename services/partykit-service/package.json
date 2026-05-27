@@ -4,18 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev":    "partykit dev",
+    "dev": "partykit dev",
     "deploy": "partykit deploy",
-    "build":  "tsc --noEmit"
+    "build": "tsc --noEmit"
   },
   "dependencies": {
-    "partykit":   "0.0.107",
+    "partykit": "0.0.107",
     "y-partykit": "0.0.14"
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/ws": "^8.5.14",
     "typescript": "^5.4.0",
-    "y-websocket": "^2.1.0",
     "ws": "^8.18.0",
-    "@types/ws": "^8.5.14"
+    "y-websocket": "^2.1.0"
   }
 }

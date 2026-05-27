@@ -9,8 +9,8 @@ const AUTH_REQUIRED =
 export default class DocumentServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
-  static async onBeforeConnect(request: Party.Request): Promise<Response | undefined> {
-    if (!AUTH_REQUIRED) return;
+  static async onBeforeConnect(request: Party.Request): Promise<Party.Request | Response> {
+    if (!AUTH_REQUIRED) return request;
 
     const token = new URL(request.url).searchParams.get("token");
     if (!token) {
@@ -44,6 +44,7 @@ export default class DocumentServer implements Party.Server {
           { status: 401, headers: { "Content-Type": "application/json" } }
         );
       }
+      return request;
     } catch {
       return new Response(
         JSON.stringify({ error: "Unauthorized — auth service unreachable" }),
