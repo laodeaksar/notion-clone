@@ -730,19 +730,119 @@ fileRoutes.post('/files/bulk-delete', requireAuth, async (c) => {
 });
 
 /**
- * POST /upload  — proxies to the file-service (unchanged)
+ * GET /upload  — proxies to the file-service list endpoint (Cloudinary-backed).
+ *
+ * Returns: { items, truncated, cursor } from Cloudinary via file-service.
+ *
+ * Query params:
+ *   folder — Cloudinary folder to list (default: 'notion-clone')
+ *   cursor — pagination cursor from previous response
+ *   limit  — page size (1–1000, default 100)
  */
-fileRoutes.post(
-  '/upload',
-  vValidator('json', UploadBodySchema, onInvalid),
-  async (c) => {
-    const body    = c.req.valid('json');
-    const fileUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
-    const { data, status } = await proxyJson(fileUrl, '/upload', {
-      method:  'POST',
-      body:    JSON.stringify(body),
+fileRoutes.get('/upload', requireAuth, async (c) => {
+  const fileUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const qs      = new URL(c.req.url).search;
+  const target  = `${fileUrl}/upload${qs}`;
+
+  try {
+    const res = await fetch(target, {
+      headers: {
+        ...Object.fromEntries(c.req.raw.headers),
+        ...serviceHeaders(c)
+      },
+      signal: AbortSignal.timeout(15_000)
+    });
+    return new Response(res.body, {
+      status:  res.status,
       headers: { 'content-type': 'application/json' }
     });
-    return c.json(data, status as any);
+  } catch {
+    return c.json({ error: 'File service unavailable' }, 503);
   }
-);
+});
+
+/**
+ * GET /upload/:publicId  — proxies to file-service for single-file metadata.
+ */
+fileRoutes.get('/upload/:publicId{.+}', requireAuth, async (c) => {
+  const fileUrl   = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const publicId  = c.req.param('publicId');
+  const target    = `${fileUrl}/upload/${publicId}`;
+
+  try {
+    const res = await fetch(target, {
+      headers: {
+        ...Object.fromEntries(c.req.raw.headers),
+        ...serviceHeaders(c)
+      },
+      signal: AbortSignal.timeout(10_000)
+    });
+    return new Response(res.body, {
+      status:  res.status,
+      headers: { 'content-type': 'application/json' }
+    });
+  } catch {
+    return c.json({ error: 'File service unavailable' }, 503);
+  }
+});
+
+/**
+ * DELETE /upload/:publicId  — proxies to file-service to delete from Cloudinary + DB.
+ */
+fileRoutes.delete('/upload/:publicId{.+}', requireAuth, async (c) => {
+  const fileUrl   = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const publicId  = c.req.param('publicId');
+  const target    = `${fileUrl}/upload/${publicId}`;
+
+  try {
+    const res = await fetch(target, {
+      method:  'DELETE',
+      headers: {
+        ...Object.fromEntries(c.req.raw.headers),
+        ...serviceHeaders(c)
+      },
+      signal: AbortSignal.timeout(15_000)
+    });
+    return new Response(res.body, {
+      status:  res.status,
+      headers: { 'content-type': 'application/json' }
+    });
+  } catch {
+    return c.json({ error: 'File service unavailable' }, 503);
+  }
+});
+
+/**
+ * POST /upload  — proxies to the file-service for uploading files.
+ *
+ * Accepts both:
+ *   - multipart/form-data with a `file` field (from browser FileUpload component)
+ *   - application/json with { data, filename?, folder? } (base64 upload)
+ *
+ * Auth is enforced here; the file-service also validates the x-internal-secret
+ * header injected by serviceHeaders().
+ */
+fileRoutes.post('/upload', requireAuth, async (c) => {
+  const fileUrl = getEnv(c, 'FILE_SERVICE_URL', 'http://localhost:8084');
+  const target  = `${fileUrl}/upload`;
+
+  const init: RequestInit = {
+    method:  'POST',
+    headers: {
+      ...Object.fromEntries(c.req.raw.headers),
+      ...serviceHeaders(c)
+    },
+    body:   c.req.raw.body,
+    signal: AbortSignal.timeout(60_000)
+  };
+
+  try {
+    const res = await fetch(target, init);
+    return new Response(res.body, {
+      status:  res.status,
+      headers: { 'content-type': 'application/json' }
+    });
+  } catch {
+    return c.json({ error: 'File service unavailable' }, 503);
+  }
+});

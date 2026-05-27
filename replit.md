@@ -59,5 +59,6 @@ This starts all microservices in parallel and then the SvelteKit dev server.
 ## User Preferences
 
 - Monorepo structure with pnpm workspaces
-- Bun runtime for backend microservices
 - SvelteKit for frontend
+- Wrangler dev (Cloudflare Workers runtime) for microservices in development
+- Hocuspocus service runs with Node.js + tsx (not Bun) in the Replit environment

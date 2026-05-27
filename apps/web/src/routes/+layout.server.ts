@@ -9,7 +9,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies, depends, platfor
 
   if (!user) return { user, pages: [], hocuspocusUrl };
 
-  const token = cookies.get('token');
+  const token = locals.sessionToken ?? cookies.get('better-auth.session_token');
   if (!token) return { user, pages: [], hocuspocusUrl };
 
   const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');

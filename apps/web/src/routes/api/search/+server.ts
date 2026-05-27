@@ -2,7 +2,7 @@ import { getEnv } from '$lib/server/env';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export async function GET(event: RequestEvent) {
-  const token = event.cookies.get('token');
+  const token = event.cookies.get('better-auth.session_token');
   if (!token) {
     return new Response(JSON.stringify({ query: '', results: [] }), {
       status: 200,
