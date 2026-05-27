@@ -17416,6 +17416,28 @@ function createPagePublisher(queue) {
 }
 __name(createPagePublisher, "createPagePublisher");
 
+// src/services/search.indexer.ts
+async function indexPage(db, pageId) {
+  const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
+  if (!page) return;
+  await db.insert(searchIndex).values({
+    id: crypto.randomUUID(),
+    entityType: "page",
+    entityId: pageId,
+    pageId,
+    body: page.title,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).onConflictDoUpdate({
+    target: searchIndex.entityId,
+    set: { body: page.title, updatedAt: /* @__PURE__ */ new Date() }
+  });
+}
+__name(indexPage, "indexPage");
+async function cleanPageIndex(db, pageId) {
+  await db.delete(searchIndex).where(eq(searchIndex.pageId, pageId));
+}
+__name(cleanPageIndex, "cleanPageIndex");
+
 // src/services/page.service.ts
 function createPageService(db, eventsQueue) {
   const pageRepo = createPageRepo(db);
@@ -17435,23 +17457,38 @@ function createPageService(db, eventsQueue) {
     },
     async createPage(input, userId) {
       const page = await pageRepo.create(input, userId);
-      await publisher.publish({
-        type: "page.created",
-        payload: { pageId: page.id, parentId: page.parentId }
-      });
+      await db.insert(blocks).values({
+        id: crypto.randomUUID(),
+        pageId: page.id,
+        type: "heading",
+        content: { level: 1, text: "" },
+        order: 0,
+        createdAt: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).onConflictDoNothing();
+      await Promise.allSettled([
+        publisher.publish({ type: "page.created", payload: { pageId: page.id, parentId: page.parentId } }),
+        indexPage(db, page.id)
+      ]);
       return page;
     },
     async updatePage(id, input, userId) {
       const page = await pageRepo.update(id, input, userId);
       if (page) {
-        await publisher.publish({ type: "page.updated", payload: { pageId: page.id } });
+        await Promise.allSettled([
+          publisher.publish({ type: "page.updated", payload: { pageId: page.id } }),
+          indexPage(db, page.id)
+        ]);
       }
       return page;
     },
     async deletePage(id, userId) {
       const deleted = await pageRepo.delete(id, userId);
       if (deleted) {
-        await publisher.publish({ type: "page.deleted", payload: { pageId: id } });
+        await Promise.allSettled([
+          publisher.publish({ type: "page.deleted", payload: { pageId: id } }),
+          cleanPageIndex(db, id)
+        ]);
       }
       return deleted;
     }
@@ -17564,53 +17601,24 @@ async function handlePageEvent(event, env2) {
         createdAt: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
       }).onConflictDoNothing();
-      const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
-      if (page) {
-        await db.insert(searchIndex).values({
-          id: crypto.randomUUID(),
-          entityType: "page",
-          entityId: pageId,
-          pageId,
-          body: page.title,
-          updatedAt: /* @__PURE__ */ new Date()
-        }).onConflictDoUpdate({
-          target: searchIndex.entityId,
-          set: { body: page.title, updatedAt: /* @__PURE__ */ new Date() }
-        });
-      }
+      await indexPage(db, pageId);
       console.log(`[page-service] page.created: block + search entry created for page ${pageId}`);
       break;
     }
     case "page.updated": {
       const { pageId } = event.payload;
       await db.update(documents).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(documents.name, pageId));
-      const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
-      if (page) {
-        await db.insert(searchIndex).values({
-          id: crypto.randomUUID(),
-          entityType: "page",
-          entityId: pageId,
-          pageId,
-          body: page.title,
-          updatedAt: /* @__PURE__ */ new Date()
-        }).onConflictDoUpdate({
-          target: searchIndex.entityId,
-          set: { body: page.title, updatedAt: /* @__PURE__ */ new Date() }
-        });
-        console.log(`[page-service] page.updated: search index refreshed for page ${pageId} ("${page.title}")`);
-      } else {
-        console.warn(`[page-service] page.updated: page ${pageId} not found \u2014 skipped search index update`);
-      }
+      await indexPage(db, pageId);
+      console.log(`[page-service] page.updated: search index refreshed for page ${pageId}`);
       break;
     }
     case "page.deleted": {
       const { pageId } = event.payload;
       const deleted = await db.delete(documents).where(eq(documents.name, pageId)).returning();
-      const removedRows = await db.delete(searchIndex).where(eq(searchIndex.pageId, pageId)).returning();
+      await cleanPageIndex(db, pageId);
       console.log(
         `[page-service] page.deleted: cleaned up page ${pageId}`,
-        `\u2014 ${deleted.length} document record(s),`,
-        `${removedRows.length} search index row(s) removed`
+        `\u2014 ${deleted.length} document record(s) removed`
       );
       break;
     }

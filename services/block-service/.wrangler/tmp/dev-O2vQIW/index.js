@@ -17368,6 +17368,42 @@ function createBlockPublisher(queue) {
 }
 __name(createBlockPublisher, "createBlockPublisher");
 
+// src/services/search.indexer.ts
+function extractText(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(extractText).filter(Boolean).join(" ");
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).map(extractText).filter(Boolean).join(" ");
+  }
+  return "";
+}
+__name(extractText, "extractText");
+async function indexBlock(db, blockId, pageId, content) {
+  const body = extractText(content).trim();
+  if (body) {
+    await db.insert(searchIndex).values({
+      id: crypto.randomUUID(),
+      entityType: "block",
+      entityId: blockId,
+      pageId,
+      body,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).onConflictDoUpdate({
+      target: searchIndex.entityId,
+      set: { body, updatedAt: /* @__PURE__ */ new Date() }
+    });
+  } else {
+    await db.delete(searchIndex).where(eq(searchIndex.entityId, blockId));
+  }
+}
+__name(indexBlock, "indexBlock");
+async function cleanBlockIndex(db, blockId) {
+  await db.delete(searchIndex).where(eq(searchIndex.entityId, blockId));
+}
+__name(cleanBlockIndex, "cleanBlockIndex");
+
 // src/services/block.service.ts
 function createBlockService(db, eventsQueue) {
   const blockRepo = createBlockRepo(db);
@@ -17381,19 +17417,25 @@ function createBlockService(db, eventsQueue) {
     },
     async createBlock(input) {
       const block = await blockRepo.create(input);
-      await publisher.publish({
-        type: "block.created",
-        payload: { blockId: block.id, pageId: block.pageId }
-      });
+      await Promise.allSettled([
+        publisher.publish({
+          type: "block.created",
+          payload: { blockId: block.id, pageId: block.pageId }
+        }),
+        indexBlock(db, block.id, block.pageId, block.content)
+      ]);
       return block;
     },
     async updateBlock(id, input) {
       const block = await blockRepo.update(id, input);
       if (block) {
-        await publisher.publish({
-          type: "block.updated",
-          payload: { blockId: block.id, pageId: block.pageId }
-        });
+        await Promise.allSettled([
+          publisher.publish({
+            type: "block.updated",
+            payload: { blockId: block.id, pageId: block.pageId }
+          }),
+          indexBlock(db, block.id, block.pageId, block.content)
+        ]);
       }
       return block;
     },
@@ -17402,10 +17444,13 @@ function createBlockService(db, eventsQueue) {
       if (!existing) return false;
       const deleted = await blockRepo.delete(id);
       if (deleted) {
-        await publisher.publish({
-          type: "block.deleted",
-          payload: { blockId: id, pageId: existing.pageId }
-        });
+        await Promise.allSettled([
+          publisher.publish({
+            type: "block.deleted",
+            payload: { blockId: id, pageId: existing.pageId }
+          }),
+          cleanBlockIndex(db, id)
+        ]);
       }
       return deleted;
     }
@@ -17483,17 +17528,6 @@ var blockRoutes = new Hono2().use("*", authMiddleware).get("/", async (c) => {
 var routes = new Hono2().get("/", (c) => c.json({ status: "ok", service: "block-service" })).route("/blocks", blockRoutes);
 
 // src/queue/handlers.ts
-function extractText(value) {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) {
-    return value.map(extractText).filter(Boolean).join(" ");
-  }
-  if (value !== null && typeof value === "object") {
-    return Object.values(value).map(extractText).filter(Boolean).join(" ");
-  }
-  return "";
-}
-__name(extractText, "extractText");
 async function handleBlockEvent(event, env2) {
   const db = createDb(env2.DATABASE_URL);
   const { blockId, pageId } = event.payload;
@@ -17506,34 +17540,15 @@ async function handleBlockEvent(event, env2) {
       }
       const [block] = await db.select().from(blocks).where(eq(blocks.id, blockId));
       if (block) {
-        const body = extractText(block.content).trim();
-        if (body) {
-          await db.insert(searchIndex).values({
-            id: crypto.randomUUID(),
-            entityType: "block",
-            entityId: blockId,
-            pageId,
-            body,
-            updatedAt: /* @__PURE__ */ new Date()
-          }).onConflictDoUpdate({
-            target: searchIndex.entityId,
-            set: { body, updatedAt: /* @__PURE__ */ new Date() }
-          });
-          console.log(`[block-service] ${event.type}: indexed block ${blockId} on page ${pageId}`);
-        } else {
-          await db.delete(searchIndex).where(eq(searchIndex.entityId, blockId));
-          console.log(`[block-service] ${event.type}: block ${blockId} has no text body \u2014 removed from index`);
-        }
+        await indexBlock(db, blockId, pageId, block.content);
+        console.log(`[block-service] ${event.type}: indexed block ${blockId} on page ${pageId}`);
       }
       break;
     }
     case "block.deleted": {
       await db.update(pages).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq(pages.id, pageId)).returning();
-      const removed = await db.delete(searchIndex).where(eq(searchIndex.entityId, blockId)).returning();
-      console.log(
-        `[block-service] block.deleted: removed block ${blockId} from page ${pageId}`,
-        removed.length ? "(search entry deleted)" : "(no search entry found)"
-      );
+      await cleanBlockIndex(db, blockId);
+      console.log(`[block-service] block.deleted: removed block ${blockId} from page ${pageId}`);
       break;
     }
   }

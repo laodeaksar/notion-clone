@@ -1,4 +1,5 @@
-import { createDb, blocks, documents, pages, searchIndex, eq } from '@workspace/db';
+import { createDb, blocks, documents, eq } from '@workspace/db';
+import { indexPage, cleanPageIndex } from '../services/search.indexer';
 import type { PageEvent } from '@workspace/shared';
 import type { Bindings } from '../types/env';
 
@@ -19,6 +20,7 @@ export async function handlePageEvent(event: PageEvent, env: Bindings): Promise<
       const { pageId } = event.payload;
 
       // Insert a default empty heading block for the new page
+      // (idempotent — page.service already inserts one directly, this is the prod fallback)
       await db
         .insert(blocks)
         .values({
@@ -33,23 +35,7 @@ export async function handlePageEvent(event: PageEvent, env: Bindings): Promise<
         .onConflictDoNothing();
 
       // Index the page title for full-text search
-      const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
-      if (page) {
-        await db
-          .insert(searchIndex)
-          .values({
-            id:         crypto.randomUUID(),
-            entityType: 'page',
-            entityId:   pageId,
-            pageId,
-            body:       page.title,
-            updatedAt:  new Date()
-          })
-          .onConflictDoUpdate({
-            target: searchIndex.entityId,
-            set:    { body: page.title, updatedAt: new Date() }
-          });
-      }
+      await indexPage(db, pageId);
 
       console.log(`[page-service] page.created: block + search entry created for page ${pageId}`);
       break;
@@ -65,26 +51,9 @@ export async function handlePageEvent(event: PageEvent, env: Bindings): Promise<
         .where(eq(documents.name, pageId));
 
       // Re-index with the latest title
-      const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
-      if (page) {
-        await db
-          .insert(searchIndex)
-          .values({
-            id:         crypto.randomUUID(),
-            entityType: 'page',
-            entityId:   pageId,
-            pageId,
-            body:       page.title,
-            updatedAt:  new Date()
-          })
-          .onConflictDoUpdate({
-            target: searchIndex.entityId,
-            set:    { body: page.title, updatedAt: new Date() }
-          });
-        console.log(`[page-service] page.updated: search index refreshed for page ${pageId} ("${page.title}")`);
-      } else {
-        console.warn(`[page-service] page.updated: page ${pageId} not found — skipped search index update`);
-      }
+      await indexPage(db, pageId);
+
+      console.log(`[page-service] page.updated: search index refreshed for page ${pageId}`);
       break;
     }
 
@@ -98,15 +67,11 @@ export async function handlePageEvent(event: PageEvent, env: Bindings): Promise<
         .returning();
 
       // Bulk-remove all search_index entries owned by this page (page + blocks)
-      const removedRows = await db
-        .delete(searchIndex)
-        .where(eq(searchIndex.pageId, pageId))
-        .returning();
+      await cleanPageIndex(db, pageId);
 
       console.log(
         `[page-service] page.deleted: cleaned up page ${pageId}`,
-        `— ${deleted.length} document record(s),`,
-        `${removedRows.length} search index row(s) removed`
+        `— ${deleted.length} document record(s) removed`
       );
       break;
     }

@@ -1,7 +1,9 @@
 import * as v from 'valibot';
+import { blocks } from '@workspace/db';
 import { PageInputSchema, PageUpdateSchema } from '../types/page.types';
 import { createPageRepo } from '../repository/page.repo';
 import { createPagePublisher } from '../events/publisher';
+import { indexPage, cleanPageIndex } from './search.indexer';
 import type { CfQueue } from '@workspace/shared';
 import type { PageEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
@@ -29,10 +31,27 @@ export function createPageService(db: Db, eventsQueue?: CfQueue<PageEvent> | nul
 
     async createPage(input: v.InferInput<typeof PageInputSchema>, userId: string): Promise<Page> {
       const page = await pageRepo.create(input, userId);
-      await publisher.publish({
-        type:    'page.created',
-        payload: { pageId: page.id, parentId: page.parentId }
-      });
+
+      // Insert a default empty heading block immediately (Queue may not be consumed in dev)
+      await db
+        .insert(blocks)
+        .values({
+          id:        crypto.randomUUID(),
+          pageId:    page.id,
+          type:      'heading',
+          content:   { level: 1, text: '' },
+          order:     0,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .onConflictDoNothing();
+
+      // Index and publish in parallel; errors are non-fatal
+      await Promise.allSettled([
+        publisher.publish({ type: 'page.created', payload: { pageId: page.id, parentId: page.parentId } }),
+        indexPage(db, page.id)
+      ]);
+
       return page;
     },
 
@@ -43,7 +62,10 @@ export function createPageService(db: Db, eventsQueue?: CfQueue<PageEvent> | nul
     ): Promise<Page | null> {
       const page = await pageRepo.update(id, input, userId);
       if (page) {
-        await publisher.publish({ type: 'page.updated', payload: { pageId: page.id } });
+        await Promise.allSettled([
+          publisher.publish({ type: 'page.updated', payload: { pageId: page.id } }),
+          indexPage(db, page.id)
+        ]);
       }
       return page;
     },
@@ -51,7 +73,10 @@ export function createPageService(db: Db, eventsQueue?: CfQueue<PageEvent> | nul
     async deletePage(id: string, userId: string): Promise<boolean> {
       const deleted = await pageRepo.delete(id, userId);
       if (deleted) {
-        await publisher.publish({ type: 'page.deleted', payload: { pageId: id } });
+        await Promise.allSettled([
+          publisher.publish({ type: 'page.deleted', payload: { pageId: id } }),
+          cleanPageIndex(db, id)
+        ]);
       }
       return deleted;
     }

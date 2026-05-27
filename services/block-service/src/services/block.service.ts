@@ -2,6 +2,7 @@ import * as v from 'valibot';
 import { BlockInputSchema, BlockUpdateSchema } from '../types/block.types';
 import { createBlockRepo } from '../repository/block.repo';
 import { createBlockPublisher } from '../events/publisher';
+import { indexBlock, cleanBlockIndex } from './search.indexer';
 import type { CfQueue } from '@workspace/shared';
 import type { BlockEvent } from '@workspace/shared';
 import type { Db } from '@workspace/db';
@@ -22,20 +23,28 @@ export function createBlockService(db: Db, eventsQueue?: CfQueue<BlockEvent> | n
 
     async createBlock(input: v.InferInput<typeof BlockInputSchema>): Promise<Block> {
       const block = await blockRepo.create(input);
-      await publisher.publish({
-        type: 'block.created',
-        payload: { blockId: block.id, pageId: block.pageId }
-      });
+
+      await Promise.allSettled([
+        publisher.publish({
+          type: 'block.created',
+          payload: { blockId: block.id, pageId: block.pageId }
+        }),
+        indexBlock(db, block.id, block.pageId, block.content)
+      ]);
+
       return block;
     },
 
     async updateBlock(id: string, input: v.InferInput<typeof BlockUpdateSchema>): Promise<Block | null> {
       const block = await blockRepo.update(id, input);
       if (block) {
-        await publisher.publish({
-          type: 'block.updated',
-          payload: { blockId: block.id, pageId: block.pageId }
-        });
+        await Promise.allSettled([
+          publisher.publish({
+            type: 'block.updated',
+            payload: { blockId: block.id, pageId: block.pageId }
+          }),
+          indexBlock(db, block.id, block.pageId, block.content)
+        ]);
       }
       return block;
     },
@@ -45,10 +54,13 @@ export function createBlockService(db: Db, eventsQueue?: CfQueue<BlockEvent> | n
       if (!existing) return false;
       const deleted = await blockRepo.delete(id);
       if (deleted) {
-        await publisher.publish({
-          type: 'block.deleted',
-          payload: { blockId: id, pageId: existing.pageId }
-        });
+        await Promise.allSettled([
+          publisher.publish({
+            type: 'block.deleted',
+            payload: { blockId: id, pageId: existing.pageId }
+          }),
+          cleanBlockIndex(db, id)
+        ]);
       }
       return deleted;
     }
