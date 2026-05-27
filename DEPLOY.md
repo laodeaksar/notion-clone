@@ -59,43 +59,28 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `DATABASE_URL` | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` |
 | `JWT_SECRET` | String acak panjang (min 32 karakter) |
 | `JWT_REFRESH_SECRET` | String acak panjang **berbeda** dari JWT_SECRET |
-| `R2_PUBLIC_URL` | URL publik bucket R2 (mis. `https://pub-xxx.r2.dev`) |
+| `INTERNAL_SECRET` | String acak untuk auth antar-service (min 32 karakter) |
+| `CLOUDINARY_CLOUD_NAME` | Nama cloud Cloudinary (untuk file upload) |
+| `CLOUDINARY_API_KEY` | API key Cloudinary |
+| `CLOUDINARY_API_SECRET` | API secret Cloudinary |
 | `HOCUSPOCUS_BACKEND_URL` | URL publik server hocuspocus, mis. `https://your-vm.replit.app` |
 
-#### Tab "Variables" — untuk Workers (api-gateway & services):
+#### Tab "Variables" — nilai non-sensitif untuk Workers & web build:
 
 | Nama Variable | Nilai |
 |---------------|-------|
-| `AUTH_SERVICE_URL` | `https://auth-service.YOUR-SUBDOMAIN.workers.dev` |
-| `PAGE_SERVICE_URL` | `https://page-service.YOUR-SUBDOMAIN.workers.dev` |
-| `BLOCK_SERVICE_URL` | `https://block-service.YOUR-SUBDOMAIN.workers.dev` |
-| `FILE_SERVICE_URL` | `https://file-service.YOUR-SUBDOMAIN.workers.dev` |
+| `GATEWAY_ORIGIN` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
+| `AUTH_REQUIRED` | `true` |
+| `ALLOWED_ORIGINS` | `https://notion-clone-web.pages.dev` (tambah custom domain jika ada) |
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
+| `API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 | `PUBLIC_HOCUSPOCUS_URL` | `wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev` |
 
 > **Cara tahu subdomain:** Setelah deploy pertama berhasil, URL muncul di log GitHub Actions. Atau cek di Cloudflare dashboard → Workers.
 
 > **Catatan:** Deploy pertama, biarkan Variables kosong dulu. Setelah semua service berhasil deploy dan URL-nya diketahui, baru isi Variables dan trigger ulang workflow (`workflow_dispatch`).
 
----
-
-### Langkah 3b — Set Environment Variables di Cloudflare Pages
-
-Env vars untuk web frontend **dibaca saat runtime** dari Cloudflare Pages dashboard — bukan di-bake saat build. Artinya kamu bisa ganti URL kapan saja **tanpa perlu push ulang kode atau rebuild**.
-
-1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **notion-web**
-2. Tab **Settings** → **Environment variables** → **Add variables**
-3. Pilih environment **Production** (dan **Preview** jika ingin staging)
-
-Tambahkan variabel berikut:
-
-| Nama Variable | Nilai | Tipe |
-|---------------|-------|------|
-| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` | Plain text |
-| `PUBLIC_HOCUSPOCUS_URL` | `wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev` | Plain text |
-| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` | Plain text |
-| `JWT_SECRET` | *(sama dengan JWT_SECRET di Workers)* | **Secret** |
-
-4. Klik **Save**
+> **Web build:** `PUBLIC_API_GATEWAY_URL`, `API_GATEWAY_URL`, dan `PUBLIC_HOCUSPOCUS_URL` di-bake saat build oleh GitHub Actions (bukan dibaca runtime dari CF Pages dashboard). Jika URL berubah, update Variables lalu push ulang agar rebuild terjadi.
 
 ---
 
@@ -109,10 +94,9 @@ git push origin main
 
 GitHub Actions akan:
 1. Jalankan **migrasi database** ke Neon — schema selalu up-to-date sebelum kode baru aktif
-2. Deploy **auth**, **page**, **block**, **file** service **secara paralel** (setelah migrasi selesai)
-3. Setelah keempat selesai, deploy **api-gateway** secara otomatis
-4. Deploy **hocuspocus-proxy** secara paralel dengan api-gateway
-5. Deploy **web frontend** ke Cloudflare Pages secara paralel (tidak perlu tunggu service lain)
+2. Deploy **auth**, **page**, **block**, **file**, dan **hocuspocus-proxy** secara **paralel** (setelah migrasi selesai)
+3. Setelah kelimanya selesai, deploy **api-gateway**
+4. Setelah gateway live, build dan deploy **web frontend** ke Cloudflare Pages
 
 Pantau progress di tab **Actions** di GitHub repo.
 
@@ -123,15 +107,20 @@ Pantau progress di tab **Actions** di GitHub repo.
 ```
 push to main
      │
-     ├──► deploy-web  ──────────────────────────────────────► Cloudflare Pages
-     │
      ▼
 migrate-db  (drizzle-kit migrate → Neon)
      │
      ├── deploy-auth  ──┐
-     ├── deploy-page  ──┤  (paralel)              ┌── deploy-gateway ──► Workers
-     ├── deploy-block ──┼─────────────────────────┤
-     └── deploy-file  ──┘                          └── deploy-hocuspocus-proxy ──► Workers
+     ├── deploy-page  ──┤
+     ├── deploy-block ──┤  (paralel)
+     ├── deploy-file  ──┤
+     └── deploy-hocus ──┘
+                        │
+                        ▼
+                 deploy-gateway ──► CF Workers
+                        │
+                        ▼
+                  deploy-web ──► Cloudflare Pages
 ```
 
 > **Kenapa migrasi dulu?** Jika schema baru ditambahkan bersamaan dengan kode baru,
@@ -145,10 +134,10 @@ migrate-db  (drizzle-kit migrate → Neon)
 Setelah job `deploy-web` hijau, frontend tersedia di:
 
 ```
-https://notion-web.pages.dev
+https://notion-clone-web.pages.dev
 ```
 
-> URL ini muncul di log GitHub Actions step "Deploy ke Cloudflare Pages". Bisa juga dicek di Cloudflare dashboard → **Workers & Pages** → **notion-web**.
+> URL ini muncul di log GitHub Actions step "Deploy ke Cloudflare Pages". Bisa juga dicek di Cloudflare dashboard → **Workers & Pages** → **notion-clone-web**.
 
 ---
 
@@ -158,7 +147,7 @@ Sebelum workflow pertama berjalan, buat project Pages lebih dulu agar wrangler b
 
 1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create**
 2. Pilih tab **Pages** → **Connect to Git** (atau **Upload assets** untuk manual)
-3. Beri nama project: `notion-web`
+3. Beri nama project: `notion-clone-web`
 4. Klik **Save**
 
 > Setelah project ada, GitHub Actions akan otomatis push ke project tersebut setiap kali ada push ke `main`.
@@ -314,24 +303,24 @@ curl https://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev/health
 
 ## Custom Domain untuk Cloudflare Pages
 
-Secara default web tersedia di `https://notion-web.pages.dev`. Jika ingin pakai domain sendiri (mis. `app.yourdomain.com`), ikuti langkah berikut.
+Secara default web tersedia di `https://notion-clone-web.pages.dev`. Jika ingin pakai domain sendiri (mis. `app.yourdomain.com`), ikuti langkah berikut.
 
 ### Prasyarat
 - Domain sudah terdaftar dan nameserver-nya diarahkan ke Cloudflare (domain harus di-manage di Cloudflare DNS)
-- Project Pages `notion-web` sudah berhasil di-deploy minimal sekali
+- Project Pages `notion-clone-web` sudah berhasil di-deploy minimal sekali
 
 ---
 
 ### Langkah 1 — Tambah Custom Domain di Cloudflare Pages
 
 1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
-2. Klik project **notion-web**
+2. Klik project **notion-clone-web**
 3. Buka tab **Custom domains**
 4. Klik **Set up a custom domain**
 5. Masukkan domain kamu, mis: `app.yourdomain.com`
 6. Klik **Continue**
 
-Cloudflare akan otomatis membuat DNS record `CNAME` yang mengarah ke `notion-web.pages.dev`.
+Cloudflare akan otomatis membuat DNS record `CNAME` yang mengarah ke `notion-clone-web.pages.dev`.
 
 7. Klik **Activate domain**
 
@@ -427,7 +416,7 @@ cd apps/web && pnpm build
 
 Lalu deploy manual:
 ```bash
-cd apps/web && pnpm exec wrangler pages deploy .svelte-kit/cloudflare --project-name=notion-web
+cd apps/web && CF_PAGES=1 pnpm build && pnpm exec wrangler pages deploy .svelte-kit/cloudflare --project-name=notion-clone-web
 ```
 
 ### Langkah B — Upload ke Dashboard (Workers)
@@ -442,7 +431,7 @@ Untuk setiap service:
 
 1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages**
 2. Pilih **Upload assets**
-3. Beri nama project: `notion-web`
+3. Beri nama project: `notion-clone-web`
 4. Upload seluruh isi folder `apps/web/.svelte-kit/cloudflare/`
 5. Klik **Deploy site**
 
@@ -470,7 +459,7 @@ Untuk Cloudflare Pages → **Settings** → **Environment variables** → tambah
 | `500 Internal Server Error` | `DATABASE_URL` atau `JWT_SECRET` belum diset | Periksa tab Secrets di GitHub / Cloudflare |
 | `upstream: unreachable` di `/ping` | URL service salah di Variables | Cek `*_SERVICE_URL` di GitHub Actions Variables |
 | `401 Unauthorized` | `JWT_SECRET` berbeda antar service | Pastikan semua pakai secret yang sama |
-| `Project not found` saat deploy Pages | Project `notion-web` belum dibuat | Buat project di CF dashboard dulu (Langkah 3.5) |
+| `Project not found` saat deploy Pages | Project `notion-clone-web` belum dibuat | Buat project di CF dashboard dulu (Langkah 3.5) |
 | Halaman web blank / API gagal | `PUBLIC_API_GATEWAY_URL` belum diset | Tambahkan ke GitHub Variables dan redeploy |
 | `Could not resolve` saat build web | Adapter belum terinstall | Jalankan `pnpm install` di root dulu |
 | Hocuspocus `/health` → `degraded` | Backend server mati / tidak bisa dijangkau | Pastikan Node.js backend jalan dan `HOCUSPOCUS_BACKEND_URL` benar |

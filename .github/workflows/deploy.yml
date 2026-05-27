@@ -9,8 +9,23 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy order:
+#
+#   migrate-db
+#       └──▶ deploy-auth  ──┐
+#       └──▶ deploy-page  ──┤
+#       └──▶ deploy-block ──┤──▶ deploy-gateway ──▶ deploy-web
+#       └──▶ deploy-file  ──┤
+#       └──▶ deploy-hocus ──┘
+#
+# Services that don't depend on each other run in parallel.
+# Gateway waits for all upstream services.
+# Web (Cloudflare Pages) waits for gateway + hocuspocus-proxy to be live.
+# ─────────────────────────────────────────────────────────────────────────────
+
 jobs:
-  # ── 0. migrate-db ────────────────────────────────────────────────────────────
+  # ── 0. DB migrations ─────────────────────────────────────────────────────
   migrate-db:
     name: Run database migrations
     runs-on: ubuntu-latest
@@ -33,16 +48,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-  # ── 1. auth-service ──────────────────────────────────────────────────────────
+  # ── 1. auth-service ───────────────────────────────────────────────────────
   deploy-auth:
-    name: Deploy auth-service
+    name: Deploy auth-service → CF Workers
     runs-on: ubuntu-latest
     needs: [migrate-db]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -51,7 +64,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy auth-service
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -72,18 +85,15 @@ jobs:
           GATEWAY_ORIGIN:     ${{ vars.GATEWAY_ORIGIN }}
           AUTH_REQUIRED:      ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS:    ${{ vars.ALLOWED_ORIGINS }}
-          # auth-service does not use INTERNAL_SECRET (it validates bearer tokens, not x-user-id)
 
-  # ── 2. page-service ──────────────────────────────────────────────────────────
+  # ── 2. page-service ───────────────────────────────────────────────────────
   deploy-page:
-    name: Deploy page-service
+    name: Deploy page-service → CF Workers
     runs-on: ubuntu-latest
     needs: [migrate-db]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -92,7 +102,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy page-service
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -107,23 +117,21 @@ jobs:
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
-          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
-          JWT_SECRET:       ${{ secrets.JWT_SECRET }}
-          INTERNAL_SECRET:  ${{ secrets.INTERNAL_SECRET }}
-          GATEWAY_ORIGIN:   ${{ vars.GATEWAY_ORIGIN }}
-          AUTH_REQUIRED:    ${{ vars.AUTH_REQUIRED }}
-          ALLOWED_ORIGINS:  ${{ vars.ALLOWED_ORIGINS }}
+          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
+          JWT_SECRET:      ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
+          AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 3. block-service ─────────────────────────────────────────────────────────
+  # ── 3. block-service ──────────────────────────────────────────────────────
   deploy-block:
-    name: Deploy block-service
+    name: Deploy block-service → CF Workers
     runs-on: ubuntu-latest
     needs: [migrate-db]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -132,7 +140,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy block-service
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -147,23 +155,21 @@ jobs:
             AUTH_REQUIRED
             ALLOWED_ORIGINS
         env:
-          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
-          JWT_SECRET:       ${{ secrets.JWT_SECRET }}
-          INTERNAL_SECRET:  ${{ secrets.INTERNAL_SECRET }}
-          GATEWAY_ORIGIN:   ${{ vars.GATEWAY_ORIGIN }}
-          AUTH_REQUIRED:    ${{ vars.AUTH_REQUIRED }}
-          ALLOWED_ORIGINS:  ${{ vars.ALLOWED_ORIGINS }}
+          DATABASE_URL:    ${{ secrets.DATABASE_URL }}
+          JWT_SECRET:      ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          GATEWAY_ORIGIN:  ${{ vars.GATEWAY_ORIGIN }}
+          AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 4. file-service ──────────────────────────────────────────────────────────
+  # ── 4. file-service ───────────────────────────────────────────────────────
   deploy-file:
-    name: Deploy file-service
+    name: Deploy file-service → CF Workers
     runs-on: ubuntu-latest
     needs: [migrate-db]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -172,7 +178,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy file-service
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -200,17 +206,24 @@ jobs:
           AUTH_REQUIRED:         ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS:       ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 5. api-gateway ───────────────────────────────────────────────────────────
-  #       Runs after all 4 upstream services are deployed.
-  deploy-gateway:
-    name: Deploy api-gateway
+  # ── 5. hocuspocus-proxy ───────────────────────────────────────────────────
+  #
+  # Thin CF Worker that proxies HTTP + WebSocket traffic to the real
+  # hocuspocus Node.js server (Replit VM / Fly.io / Railway / etc.).
+  #
+  # Required secret:
+  #   HOCUSPOCUS_BACKEND_URL — public HTTPS URL of the backend server,
+  #                            e.g. https://your-vm.replit.app
+  #
+  # The proxy worker itself has NO database dependency, so it can deploy
+  # in parallel with the other backend services.
+  deploy-hocus:
+    name: Deploy hocuspocus-proxy → CF Workers
     runs-on: ubuntu-latest
-    needs: [deploy-auth, deploy-page, deploy-block, deploy-file]
+    needs: [migrate-db]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -219,7 +232,36 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy api-gateway
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager:   pnpm
+          workingDirectory: services/hocuspocus-service/worker
+          secrets: |
+            HOCUSPOCUS_BACKEND_URL
+        env:
+          HOCUSPOCUS_BACKEND_URL: ${{ secrets.HOCUSPOCUS_BACKEND_URL }}
+
+  # ── 6. api-gateway ────────────────────────────────────────────────────────
+  #       Runs after all upstream services are live.
+  deploy-gateway:
+    name: Deploy api-gateway → CF Workers
+    runs-on: ubuntu-latest
+    needs: [deploy-auth, deploy-page, deploy-block, deploy-file, deploy-hocus]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -241,19 +283,25 @@ jobs:
           AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 6. web → Vercel ──────────────────────────────────────────────────────────
-  #       Deploys SvelteKit frontend to Vercel after gateway is live.
-  #       Required secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
-  #       Required vars:    PUBLIC_API_GATEWAY_URL, PUBLIC_HOCUSPOCUS_URL
-  deploy-web-vercel:
-    name: Deploy web to Vercel
+  # ── 7. web → Cloudflare Pages ─────────────────────────────────────────────
+  #
+  # Builds the SvelteKit app with @sveltejs/adapter-cloudflare (triggered by
+  # CF_PAGES=1) then deploys the output to Cloudflare Pages via wrangler.
+  #
+  # Required GitHub Variables (Settings → Secrets and variables → Variables):
+  #   PUBLIC_API_GATEWAY_URL — e.g. https://notion-api.YOUR-SUBDOMAIN.workers.dev
+  #   PUBLIC_HOCUSPOCUS_URL  — e.g. wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev
+  #   API_GATEWAY_URL        — same as PUBLIC_API_GATEWAY_URL (used server-side)
+  #
+  # The Cloudflare Pages project name must match wrangler.toml → `name`.
+  # Create it once in the dashboard: Workers & Pages → Create → Pages → Direct Upload.
+  deploy-web:
+    name: Deploy web → Cloudflare Pages
     runs-on: ubuntu-latest
     needs: [deploy-gateway]
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -262,20 +310,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
-
-      - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build (Cloudflare adapter)
         working-directory: apps/web
-
-      - name: Build for Vercel
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: apps/web
+        run: pnpm build
         env:
+          CF_PAGES:               "1"
           PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
           PUBLIC_HOCUSPOCUS_URL:  ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
+          API_GATEWAY_URL:        ${{ vars.API_GATEWAY_URL }}
 
-      - name: Deploy to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: apps/web
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command:          pages deploy .svelte-kit/cloudflare --project-name=notion-clone-web --commit-dirty=true
