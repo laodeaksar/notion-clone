@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { vValidator } from '@hono/valibot-validator';
 import type { HonoEnv } from '../types/gateway.types';
-import { PageBodySchema } from '../types/gateway.types';
+import { PageBodySchema, PageUpdateBodySchema } from '../types/gateway.types';
 import { getEnv } from '../config';
 import { proxyJson } from '../services/proxy.service';
 import { requireAuth } from '../middleware/auth';
@@ -75,7 +75,7 @@ pageRoutes.get('/pages/:id/ancestors', requireAuth, async (c) => {
 pageRoutes.put(
   '/pages/:id',
   requireAuth,
-  vValidator('json', PageBodySchema, onInvalid),
+  vValidator('json', PageUpdateBodySchema, onInvalid),
   async (c) => {
     const body    = c.req.valid('json');
     const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');

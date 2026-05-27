@@ -42,6 +42,8 @@
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    localStorage.removeItem('notion-page-icons-v1');
+    localStorage.removeItem('notion:pending-mutations');
     window.location.href = '/auth';
   }
 </script>

@@ -70,6 +70,11 @@ export const PageBodySchema = v.object({
   parentId: v.optional(v.nullable(v.string()))
 });
 
+export const PageUpdateBodySchema = v.object({
+  title:    v.optional(v.pipe(v.string(), v.minLength(1))),
+  parentId: v.optional(v.nullable(v.string()))
+});
+
 export const UploadBodySchema = v.object({
   data: v.pipe(v.string(), v.minLength(1)),
   filename: v.optional(v.string()),

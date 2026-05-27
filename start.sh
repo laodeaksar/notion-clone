@@ -63,6 +63,16 @@ write_dev_vars services/block-service
 write_dev_vars services/page-service
 write_dev_vars apps/api-gateway
 
+# file-service also needs Cloudinary credentials (optional — service starts even without them)
+cat > "services/file-service/.dev.vars" <<EOF
+DATABASE_URL=${ACTIVE_DATABASE_URL:-}
+JWT_SECRET=${JWT_SECRET:-dev-secret}
+INTERNAL_SECRET=${INTERNAL_SECRET:-dev-internal-secret}
+CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-}
+CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-}
+CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-}
+EOF
+
 echo "Starting microservices..."
 
 # Help workerd (used by wrangler dev) find the system CA bundle for TLS verification
@@ -77,6 +87,9 @@ export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # Hocuspocus runs as a plain Node server (not a CF Worker); must use node+tsx, not bun
 (cd services/hocuspocus-service && PORT=1234 AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8083}" REDIS_URL="${REDIS_URL:-}" AUTH_REQUIRED="${AUTH_REQUIRED:-true}" node --import tsx src/index.ts 2>&1 | sed 's/^/[hocus]   /') &
+
+# File service via wrangler dev
+(cd services/file-service && pnpm exec wrangler dev --port 8084 --inspector-port 9234 --show-interactive-dev-session=false 2>&1 | sed 's/^/[file]    /') &
 
 # API gateway via wrangler dev
 (cd apps/api-gateway && pnpm exec wrangler dev --port 8080 --inspector-port 9233 --show-interactive-dev-session=false 2>&1 | sed 's/^/[gateway] /') &

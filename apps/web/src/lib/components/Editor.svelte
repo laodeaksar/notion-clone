@@ -15,6 +15,7 @@
     page?:          { id: string; title?: string } | null;
     user?:          { id: string; email: string; name: string | null } | null;
     hocuspocusUrl?: string;
+    sessionToken?:  string | null;
   }
 
   let { data }: { data: PageData } = $props();
@@ -156,7 +157,8 @@
     provider = new HocuspocusProvider({
       url:      data.hocuspocusUrl ?? 'ws://localhost:1234',
       document: ydoc,
-      name:     pageId
+      name:     pageId,
+      token:    data.sessionToken ?? ''
     });
 
     const SlashMenuKeyboard = Extension.create({

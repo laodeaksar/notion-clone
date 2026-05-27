@@ -23,7 +23,7 @@ export const corsMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const handler = cors({
     origin:       (origin) => allowedOrigins.includes(origin) ? origin : null,
     credentials:  true,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge:       86_400
   });
