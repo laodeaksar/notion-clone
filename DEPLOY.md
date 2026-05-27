@@ -64,6 +64,9 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 | `CLOUDINARY_API_KEY` | API key Cloudinary |
 | `CLOUDINARY_API_SECRET` | API secret Cloudinary |
 | `HOCUSPOCUS_BACKEND_URL` | URL publik server hocuspocus, mis. `https://your-vm.replit.app` |
+| `VERCEL_TOKEN` | Token dari [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | Dari `.vercel/project.json` setelah `vercel link` di folder `apps/web` |
+| `VERCEL_PROJECT_ID` | Dari `.vercel/project.json` setelah `vercel link` di folder `apps/web` |
 
 #### Tab "Variables" — nilai non-sensitif untuk Workers & web build:
 
@@ -71,7 +74,7 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 |---------------|-------|
 | `GATEWAY_ORIGIN` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 | `AUTH_REQUIRED` | `true` |
-| `ALLOWED_ORIGINS` | `https://notion-clone-web.pages.dev` (tambah custom domain jika ada) |
+| `ALLOWED_ORIGINS` | `https://your-project.vercel.app` (tambah custom domain jika ada) |
 | `PUBLIC_API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 | `API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 | `PUBLIC_HOCUSPOCUS_URL` | `wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev` |
@@ -80,7 +83,7 @@ Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions**
 
 > **Catatan:** Deploy pertama, biarkan Variables kosong dulu. Setelah semua service berhasil deploy dan URL-nya diketahui, baru isi Variables dan trigger ulang workflow (`workflow_dispatch`).
 
-> **Web build:** `PUBLIC_API_GATEWAY_URL`, `API_GATEWAY_URL`, dan `PUBLIC_HOCUSPOCUS_URL` di-bake saat build oleh GitHub Actions (bukan dibaca runtime dari CF Pages dashboard). Jika URL berubah, update Variables lalu push ulang agar rebuild terjadi.
+> **Cara dapat `VERCEL_ORG_ID` & `VERCEL_PROJECT_ID`:** Jalankan `vercel login` lalu `vercel link` dari folder `apps/web`. File `.vercel/project.json` akan berisi kedua ID tersebut.
 
 ---
 
@@ -96,7 +99,7 @@ GitHub Actions akan:
 1. Jalankan **migrasi database** ke Neon — schema selalu up-to-date sebelum kode baru aktif
 2. Deploy **auth**, **page**, **block**, **file**, dan **hocuspocus-proxy** secara **paralel** (setelah migrasi selesai)
 3. Setelah kelimanya selesai, deploy **api-gateway**
-4. Setelah gateway live, build dan deploy **web frontend** ke Cloudflare Pages
+4. Setelah gateway live, build dan deploy **web frontend** ke Vercel
 
 Pantau progress di tab **Actions** di GitHub repo.
 
@@ -120,7 +123,7 @@ migrate-db  (drizzle-kit migrate → Neon)
                  deploy-gateway ──► CF Workers
                         │
                         ▼
-                  deploy-web ──► Cloudflare Pages
+                  deploy-web ──► Vercel
 ```
 
 > **Kenapa migrasi dulu?** Jika schema baru ditambahkan bersamaan dengan kode baru,
@@ -129,28 +132,31 @@ migrate-db  (drizzle-kit migrate → Neon)
 
 ---
 
-### Verifikasi Web (Cloudflare Pages)
+### Verifikasi Web (Vercel)
 
-Setelah job `deploy-web` hijau, frontend tersedia di:
-
-```
-https://notion-clone-web.pages.dev
-```
-
-> URL ini muncul di log GitHub Actions step "Deploy ke Cloudflare Pages". Bisa juga dicek di Cloudflare dashboard → **Workers & Pages** → **notion-clone-web**.
+Setelah job `deploy-web` hijau, frontend tersedia di URL yang muncul di log GitHub Actions step "Deploy to Vercel". Atau cek di [vercel.com/dashboard](https://vercel.com/dashboard) → project web.
 
 ---
 
-### Langkah 3.5 — Buat Project Cloudflare Pages (sekali saja)
+### Langkah 3.5 — Link Project Vercel (sekali saja)
 
-Sebelum workflow pertama berjalan, buat project Pages lebih dulu agar wrangler bisa deploy:
+Sebelum workflow pertama berjalan, link project Vercel lebih dulu untuk mendapatkan `VERCEL_ORG_ID` dan `VERCEL_PROJECT_ID`:
 
-1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create**
-2. Pilih tab **Pages** → **Connect to Git** (atau **Upload assets** untuk manual)
-3. Beri nama project: `notion-clone-web`
-4. Klik **Save**
+```bash
+# Install Vercel CLI jika belum
+pnpm add -g vercel
 
-> Setelah project ada, GitHub Actions akan otomatis push ke project tersebut setiap kali ada push ke `main`.
+# Dari folder apps/web
+cd apps/web
+vercel login
+vercel link   # pilih atau buat project baru
+
+# Salin nilai dari file yang dibuat otomatis
+cat .vercel/project.json
+# → { "orgId": "...", "projectId": "..." }
+```
+
+Simpan `orgId` sebagai `VERCEL_ORG_ID` dan `projectId` sebagai `VERCEL_PROJECT_ID` di GitHub Secrets.
 
 ---
 
@@ -301,49 +307,20 @@ curl https://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev/health
 
 ---
 
-## Custom Domain untuk Cloudflare Pages
+## Custom Domain
 
-Secara default web tersedia di `https://notion-clone-web.pages.dev`. Jika ingin pakai domain sendiri (mis. `app.yourdomain.com`), ikuti langkah berikut.
+### Custom Domain untuk Web (Vercel)
 
-### Prasyarat
-- Domain sudah terdaftar dan nameserver-nya diarahkan ke Cloudflare (domain harus di-manage di Cloudflare DNS)
-- Project Pages `notion-clone-web` sudah berhasil di-deploy minimal sekali
+1. Buka [vercel.com/dashboard](https://vercel.com/dashboard) → project web → **Settings** → **Domains**
+2. Klik **Add** → masukkan domain, mis: `app.yourdomain.com`
+3. Ikuti instruksi DNS yang muncul (biasanya tambah `CNAME` ke `cname.vercel-dns.com`)
+4. Tunggu propagasi DNS (5–30 menit), SSL otomatis diterbitkan
 
----
-
-### Langkah 1 — Tambah Custom Domain di Cloudflare Pages
-
-1. Buka [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
-2. Klik project **notion-clone-web**
-3. Buka tab **Custom domains**
-4. Klik **Set up a custom domain**
-5. Masukkan domain kamu, mis: `app.yourdomain.com`
-6. Klik **Continue**
-
-Cloudflare akan otomatis membuat DNS record `CNAME` yang mengarah ke `notion-clone-web.pages.dev`.
-
-7. Klik **Activate domain**
-
-Tunggu beberapa menit hingga SSL certificate diterbitkan otomatis.
+Setelah aktif, update `ALLOWED_ORIGINS` di GitHub Actions Variables agar CORS gateway meizinkan domain baru, lalu trigger ulang workflow.
 
 ---
 
-### Langkah 2 — Update Environment Variables
-
-Setelah custom domain aktif, update URL di GitHub Actions Variables agar frontend tahu alamat publiknya:
-
-Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions** → tab **Variables**:
-
-| Nama Variable | Nilai Baru |
-|---------------|-----------|
-| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` *(tidak berubah)* |
-| `PUBLIC_HOCUSPOCUS_URL` | `wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev` *(tidak berubah)* |
-
-> Tidak ada perubahan khusus yang diperlukan untuk domain web — Cloudflare Pages otomatis melayani domain baru tanpa rebuild.
-
----
-
-### Langkah 3 — (Opsional) Custom Domain untuk API Gateway & Hocuspocus Proxy
+### Custom Domain untuk API Gateway & Hocuspocus Proxy (Cloudflare Workers)
 
 Jika ingin pakai custom domain (mis. `api.yourdomain.com` dan `ws.yourdomain.com`):
 
@@ -352,38 +329,14 @@ Jika ingin pakai custom domain (mis. `api.yourdomain.com` dan `ws.yourdomain.com
 3. Klik **Add Custom Domain** → masukkan domain
 4. Cloudflare otomatis atur DNS dan SSL
 
-Setelah aktif, update GitHub Actions Variables:
+Setelah aktif, update GitHub Actions Variables lalu trigger ulang `workflow_dispatch` agar `deploy-web` rebuild dengan URL baru:
 
 | Nama Variable | Nilai Baru |
 |---------------|-----------|
 | `API_GATEWAY_URL` | `https://api.yourdomain.com` |
 | `PUBLIC_API_GATEWAY_URL` | `https://api.yourdomain.com` |
 | `PUBLIC_HOCUSPOCUS_URL` | `wss://ws.yourdomain.com` |
-
-Lalu trigger ulang workflow `deploy-web` agar build baru menggunakan URL tersebut.
-
----
-
-### Langkah 4 — Verifikasi
-
-Setelah semua aktif, buka:
-
-```
-https://app.yourdomain.com
-```
-
-Cek juga SSL certificate aktif (gembok hijau di browser). Jika belum aktif, tunggu maksimal 10 menit atau cek status di tab **Custom domains** di Cloudflare dashboard.
-
----
-
-### Troubleshooting Custom Domain
-
-| Error | Penyebab | Solusi |
-|-------|----------|--------|
-| `DNS_PROBE_FINISHED_NXDOMAIN` | DNS belum propagasi | Tunggu 5-30 menit |
-| `SSL_ERROR_RX_RECORD_TOO_LONG` | Certificate belum ready | Tunggu 5-10 menit lagi |
-| Domain aktif tapi API gagal | `PUBLIC_API_GATEWAY_URL` belum diupdate | Update Variables → trigger ulang deploy-web |
-| `ERR_TOO_MANY_REDIRECTS` | SSL mode Cloudflare konflik | Pastikan SSL mode = **Full (strict)** di Cloudflare |
+| `GATEWAY_ORIGIN` | `https://api.yourdomain.com` |
 
 ---
 
@@ -405,18 +358,17 @@ cd apps/api-gateway       && pnpm exec wrangler deploy --dry-run --outdir dist
 cd services/hocuspocus-service/worker && pnpm exec wrangler deploy --dry-run --outdir dist
 ```
 
-### Langkah A2 — Build web untuk Cloudflare Pages
+### Langkah A2 — Build & Deploy web ke Vercel (manual)
 
 ```bash
-# Di root project:
-pnpm install
-cd apps/web && pnpm build
-# Output ada di: apps/web/.svelte-kit/cloudflare/
-```
+# Install Vercel CLI jika belum
+pnpm add -g vercel
 
-Lalu deploy manual:
-```bash
-cd apps/web && CF_PAGES=1 pnpm build && pnpm exec wrangler pages deploy .svelte-kit/cloudflare --project-name=notion-clone-web
+# Link project (sekali saja)
+cd apps/web && vercel link
+
+# Build + deploy ke production
+vercel --prod
 ```
 
 ### Langkah B — Upload ke Dashboard (Workers)
@@ -427,26 +379,17 @@ Untuk setiap service:
 3. Hapus semua kode → paste isi file `dist/index.js` hasil bundle
 4. **Save and deploy**
 
-### Langkah B2 — Upload web ke Cloudflare Pages (manual)
-
-1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages**
-2. Pilih **Upload assets**
-3. Beri nama project: `notion-clone-web`
-4. Upload seluruh isi folder `apps/web/.svelte-kit/cloudflare/`
-5. Klik **Deploy site**
-
 ### Langkah C — Set Secrets & Vars
 
 Worker → **Settings** → **Variables and Secrets** → tambahkan sesuai tabel di atas.
 
-Untuk Cloudflare Pages → **Settings** → **Environment variables** → tambahkan:
+Untuk Vercel → **Settings** → **Environment Variables** di dashboard [vercel.com](https://vercel.com) → tambahkan:
 
 | Variable | Production |
 |----------|-----------|
-| `PUBLIC_API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
+| `PUBLIC_API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 | `PUBLIC_HOCUSPOCUS_URL` | `wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev` |
-| `API_GATEWAY_URL` | `https://notion-api.YOUR-SUBDOMAIN.workers.dev` |
-| `JWT_SECRET` | (sama dengan JWT_SECRET di Workers) |
+| `API_GATEWAY_URL` | `https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev` |
 
 ---
 
@@ -459,7 +402,8 @@ Untuk Cloudflare Pages → **Settings** → **Environment variables** → tambah
 | `500 Internal Server Error` | `DATABASE_URL` atau `JWT_SECRET` belum diset | Periksa tab Secrets di GitHub / Cloudflare |
 | `upstream: unreachable` di `/ping` | URL service salah di Variables | Cek `*_SERVICE_URL` di GitHub Actions Variables |
 | `401 Unauthorized` | `JWT_SECRET` berbeda antar service | Pastikan semua pakai secret yang sama |
-| `Project not found` saat deploy Pages | Project `notion-clone-web` belum dibuat | Buat project di CF dashboard dulu (Langkah 3.5) |
+| `Error! No project linked` saat deploy web | `vercel link` belum dijalankan | Jalankan `cd apps/web && vercel link` lalu simpan ID ke GitHub Secrets |
+| Vercel build gagal `VERCEL_TOKEN invalid` | Token kedaluwarsa atau salah | Buat token baru di vercel.com/account/tokens |
 | Halaman web blank / API gagal | `PUBLIC_API_GATEWAY_URL` belum diset | Tambahkan ke GitHub Variables dan redeploy |
 | `Could not resolve` saat build web | Adapter belum terinstall | Jalankan `pnpm install` di root dulu |
 | Hocuspocus `/health` → `degraded` | Backend server mati / tidak bisa dijangkau | Pastikan Node.js backend jalan dan `HOCUSPOCUS_BACKEND_URL` benar |

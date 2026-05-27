@@ -283,20 +283,23 @@ jobs:
           AUTH_REQUIRED:   ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 7. web → Cloudflare Pages ─────────────────────────────────────────────
+  # ── 7. web → Vercel ───────────────────────────────────────────────────────
   #
-  # Builds the SvelteKit app with @sveltejs/adapter-cloudflare (triggered by
-  # CF_PAGES=1) then deploys the output to Cloudflare Pages via wrangler.
+  # Builds the SvelteKit app with @sveltejs/adapter-vercel and deploys to
+  # Vercel production. Runs after gateway is live so PUBLIC_API_GATEWAY_URL
+  # and PUBLIC_HOCUSPOCUS_URL are baked in at build time.
   #
-  # Required GitHub Variables (Settings → Secrets and variables → Variables):
-  #   PUBLIC_API_GATEWAY_URL — e.g. https://notion-api.YOUR-SUBDOMAIN.workers.dev
+  # Required GitHub Secrets:
+  #   VERCEL_TOKEN      — from vercel.com/account/tokens
+  #   VERCEL_ORG_ID     — from .vercel/project.json after `vercel link`
+  #   VERCEL_PROJECT_ID — from .vercel/project.json after `vercel link`
+  #
+  # Required GitHub Variables:
+  #   PUBLIC_API_GATEWAY_URL — e.g. https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev
   #   PUBLIC_HOCUSPOCUS_URL  — e.g. wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev
-  #   API_GATEWAY_URL        — same as PUBLIC_API_GATEWAY_URL (used server-side)
-  #
-  # The Cloudflare Pages project name must match wrangler.toml → `name`.
-  # Create it once in the dashboard: Workers & Pages → Create → Pages → Direct Upload.
+  #   API_GATEWAY_URL        — same as PUBLIC_API_GATEWAY_URL (used server-side by SvelteKit)
   deploy-web:
-    name: Deploy web → Cloudflare Pages
+    name: Deploy web → Vercel
     runs-on: ubuntu-latest
     needs: [deploy-gateway]
     steps:
@@ -310,19 +313,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build (Cloudflare adapter)
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel environment
         working-directory: apps/web
-        run: pnpm build
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build for Vercel
+        working-directory: apps/web
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          CF_PAGES:               "1"
           PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
           PUBLIC_HOCUSPOCUS_URL:  ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
           API_GATEWAY_URL:        ${{ vars.API_GATEWAY_URL }}
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/web
-          command:          pages deploy .svelte-kit/cloudflare --project-name=notion-clone-web --commit-dirty=true
+      - name: Deploy to Vercel
+        working-directory: apps/web
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
