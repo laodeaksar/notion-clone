@@ -23,14 +23,15 @@ authRoutes.all('/auth/*', async (c) => {
   const qs      = new URL(c.req.url).search;
   const target  = `${authUrl}/api/auth${suffix}${qs}`;
 
+  const hasBody = c.req.method !== 'GET' && c.req.method !== 'HEAD';
+  const body    = hasBody ? await c.req.arrayBuffer() : undefined;
+
   const init: RequestInit = {
     method:  c.req.method,
     headers: c.req.raw.headers,
+    body,
     signal:  AbortSignal.timeout(10_000)
   };
-  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
-    init.body = c.req.raw.body;
-  }
 
   try {
     const res = await fetch(target, init);

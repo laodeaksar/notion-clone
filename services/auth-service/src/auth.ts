@@ -20,12 +20,24 @@ type AuthEnv = {
  *  - Bearer token validation (via the `bearer` plugin)
  */
 export function createAuth(env: AuthEnv) {
-  const db             = createDb(env.DATABASE_URL);
-  const trustedOrigins = env.ALLOWED_ORIGINS
+  const db      = createDb(env.DATABASE_URL);
+  const baseURL = env.GATEWAY_ORIGIN ?? 'http://localhost:8080';
+
+  // Always include gateway + all local service ports so internal service-to-service
+  // calls (and curl tests) aren't rejected by better-auth's origin check.
+  const localOrigins = [
+    'http://localhost:5000',
+    'http://localhost:8080',
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://localhost:8083',
+    'http://localhost:8084',
+    baseURL
+  ];
+  const extraOrigins = env.ALLOWED_ORIGINS
     ? env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
-
-  const baseURL = env.GATEWAY_ORIGIN ?? 'http://localhost:8080';
+  const trustedOrigins = [...new Set([...localOrigins, ...extraOrigins])];
 
   return betterAuth({
     secret:   env.BETTER_AUTH_SECRET ?? 'dev-secret-notion-clone-change-in-prod',

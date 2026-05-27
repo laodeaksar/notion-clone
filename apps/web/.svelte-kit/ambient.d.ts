@@ -39,6 +39,7 @@
  */
 declare module '$env/static/private' {
 	export const npm_command: string;
+	export const BETTER_AUTH_SECRET: string;
 	export const COLORTERM: string;
 	export const REPL_OWNER: string;
 	export const BLOCK_SERVICE_URL: string;
@@ -50,6 +51,7 @@ declare module '$env/static/private' {
 	export const REPLIT_DOMAINS: string;
 	export const LD_AUDIT: string;
 	export const PGPORT: string;
+	export const ALLOWED_ORIGINS: string;
 	export const NODE_EXTRA_CA_CERTS: string;
 	export const XDG_DATA_HOME: string;
 	export const npm_config_verify_deps_before_run: string;
@@ -82,6 +84,7 @@ declare module '$env/static/private' {
 	export const FILE_SERVICE_URL: string;
 	export const REPLIT_CONTAINER: string;
 	export const INIT_CWD: string;
+	export const AUTH_REQUIRED: string;
 	export const XDG_CACHE_HOME: string;
 	export const npm_lifecycle_script: string;
 	export const REPLIT_RTLD_LOADER: string;
@@ -114,17 +117,18 @@ declare module '$env/static/private' {
 	export const PNPM_SCRIPT_SRC_DIR: string;
 	export const npm_execpath: string;
 	export const REPLIT_PID2: string;
-	export const SSL_CERT_FILE: string;
 	export const NODE_PATH: string;
 	export const PGHOST: string;
 	export const npm_package_json: string;
 	export const API_GATEWAY_URL: string;
+	export const GATEWAY_ORIGIN: string;
 	export const XDG_DATA_DIRS: string;
 	export const REPL_IDENTITY_KEY: string;
 	export const REPLIT_HELIUM_ENABLED: string;
 	export const PATH: string;
 	export const npm_config_node_gyp: string;
 	export const DOCKER_CONFIG: string;
+	export const INTERNAL_SECRET: string;
 	export const GLIBC_TUNABLES: string;
 	export const JWT_SECRET: string;
 	export const npm_config_registry: string;
@@ -222,6 +226,7 @@ declare module '$env/static/public' {
 declare module '$env/dynamic/private' {
 	export const env: {
 		npm_command: string;
+		BETTER_AUTH_SECRET: string;
 		COLORTERM: string;
 		REPL_OWNER: string;
 		BLOCK_SERVICE_URL: string;
@@ -233,6 +238,7 @@ declare module '$env/dynamic/private' {
 		REPLIT_DOMAINS: string;
 		LD_AUDIT: string;
 		PGPORT: string;
+		ALLOWED_ORIGINS: string;
 		NODE_EXTRA_CA_CERTS: string;
 		XDG_DATA_HOME: string;
 		npm_config_verify_deps_before_run: string;
@@ -265,6 +271,7 @@ declare module '$env/dynamic/private' {
 		FILE_SERVICE_URL: string;
 		REPLIT_CONTAINER: string;
 		INIT_CWD: string;
+		AUTH_REQUIRED: string;
 		XDG_CACHE_HOME: string;
 		npm_lifecycle_script: string;
 		REPLIT_RTLD_LOADER: string;
@@ -297,17 +304,18 @@ declare module '$env/dynamic/private' {
 		PNPM_SCRIPT_SRC_DIR: string;
 		npm_execpath: string;
 		REPLIT_PID2: string;
-		SSL_CERT_FILE: string;
 		NODE_PATH: string;
 		PGHOST: string;
 		npm_package_json: string;
 		API_GATEWAY_URL: string;
+		GATEWAY_ORIGIN: string;
 		XDG_DATA_DIRS: string;
 		REPL_IDENTITY_KEY: string;
 		REPLIT_HELIUM_ENABLED: string;
 		PATH: string;
 		npm_config_node_gyp: string;
 		DOCKER_CONFIG: string;
+		INTERNAL_SECRET: string;
 		GLIBC_TUNABLES: string;
 		JWT_SECRET: string;
 		npm_config_registry: string;

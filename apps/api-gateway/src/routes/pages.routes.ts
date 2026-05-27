@@ -105,3 +105,44 @@ pageRoutes.get('/pages/:id/blocks', requireAuth, async (c) => {
   });
   return c.json(data, status as any);
 });
+
+// ─── Block CRUD ───────────────────────────────────────────────────────────────
+
+pageRoutes.post('/blocks', requireAuth, async (c) => {
+  const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
+  const body     = await c.req.arrayBuffer();
+  const { data, status } = await proxyJson(blockUrl, '/blocks', {
+    method:  'POST',
+    body:    Buffer.from(body).toString('utf-8'),
+    headers: { 'content-type': 'application/json', ...serviceHeaders(c) }
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.get('/blocks/:id', requireAuth, async (c) => {
+  const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
+  const { data, status } = await proxyJson(blockUrl, `/blocks/${c.req.param('id')}`, {
+    headers: serviceHeaders(c)
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.put('/blocks/:id', requireAuth, async (c) => {
+  const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
+  const body     = await c.req.arrayBuffer();
+  const { data, status } = await proxyJson(blockUrl, `/blocks/${c.req.param('id')}`, {
+    method:  'PUT',
+    body:    Buffer.from(body).toString('utf-8'),
+    headers: { 'content-type': 'application/json', ...serviceHeaders(c) }
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.delete('/blocks/:id', requireAuth, async (c) => {
+  const blockUrl = getEnv(c, 'BLOCK_SERVICE_URL', 'http://localhost:8081');
+  const { data, status } = await proxyJson(blockUrl, `/blocks/${c.req.param('id')}`, {
+    method:  'DELETE',
+    headers: serviceHeaders(c)
+  });
+  return c.json(data, status as any);
+});

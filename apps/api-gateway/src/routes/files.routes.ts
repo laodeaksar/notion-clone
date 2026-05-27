@@ -832,7 +832,7 @@ fileRoutes.post('/upload', requireAuth, async (c) => {
       ...Object.fromEntries(c.req.raw.headers),
       ...serviceHeaders(c)
     },
-    body:   c.req.raw.body,
+    body:   await c.req.arrayBuffer(),
     signal: AbortSignal.timeout(60_000)
   };
 

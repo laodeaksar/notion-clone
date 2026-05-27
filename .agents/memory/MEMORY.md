@@ -1,4 +1,5 @@
 - [Env var strategy](env-strategy.md) — all private env vars use platform.env (CF) + process.env fallback via getEnv() helper; never $env/static or $env/dynamic
-- [Service startup](service-startup.md) — CF Worker services (auth/block/page/file/gateway) use wrangler dev with unique --inspector-port per instance; hocuspocus uses node+tsx (not bun)
+- [Service startup](service-startup.md) — ALL services now use Node.js server.node.ts (not wrangler dev); wrangler can't reach helium:5432 via cloudflare:sockets
 - [Hocuspocus auth](hocuspocus-auth.md) — HocuspocusProvider needs sessionToken from layout.server.ts; AUTH_REQUIRED=true by default; token passed as `token:` prop
 - [Bug fixes applied](bug-fixes.md) — comprehensive bug fix session covering file-service startup, hocuspocus token, CORS PATCH, partial PUT, logout cleanup
+- [DB migration](db-migration.md) — better-auth tables (sessions/accounts/verifications) added in 0007; drizzle-kit can silently skip migrations with low timestamps; apply via psql directly

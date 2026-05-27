@@ -1,20 +1,26 @@
 ---
-name: Service startup
-description: How all services are started locally in Replit via start.sh
+name: Service startup mode
+description: How all microservices start in local dev — Node.js via server.node.ts, not wrangler dev
 ---
 
-All backend services are started in `start.sh`. Key rules:
+All CF Worker services now start as plain Node.js HTTP servers using `@hono/node-server` + tsx.
+Wrangler dev (miniflare/workerd) CANNOT reach Replit's `helium:5432` PostgreSQL via `cloudflare:sockets`.
 
-**CF Worker services** (auth, block, page, file-service, api-gateway): Use `pnpm exec wrangler dev --port PORT --inspector-port UNIQUE_PORT --show-interactive-dev-session=false`. Each must get a unique `--inspector-port` to avoid the port 9229 conflict when running multiple wrangler instances in parallel. Assigned ports: auth=9230, block=9231, page=9232, gateway=9233, file=9234.
+**How:**
+- Each service has `src/server.node.ts` that does `serve({ fetch: (req) => app.fetch(req, process.env as any), port })`.
+- `start.sh` runs: `PORT=<N> node --import tsx src/server.node.ts` for each service.
+- Env vars exported in `start.sh` shell scope (not `.dev.vars`) — read via `process.env as any` passed to `app.fetch`.
 
-**file-service**: Runs on port 8084. Its `.dev.vars` is written explicitly with Cloudinary env vars (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) in addition to common vars. It was previously missing from start.sh entirely.
+**Port map:** auth=8083, block=8081, page=8082, file=8084, gateway=8080, hocuspocus=1234, frontend=5000.
 
-**Why unique inspector ports:** workerd (CF's runtime) binds the inspector port at startup. Without unique ports, all instances after the first crash with "Address already in use (127.0.0.1:9229)".
+**Why:** `cloudflare:sockets` in miniflare/workerd cannot establish TCP to `helium:5432`. Node.js TCP works fine.
 
-**Hocuspocus service**: Must run with `node --import tsx src/index.ts`, NOT `bun`. The `crossws` library (used by @hocuspocus/server v4) detects Bun in globalThis and throws "Using Node.js adapter in an incompatible environment."
+**Wrangler still needed** for `wrangler deploy` to production CF Workers — only local startup changed.
 
-**Node.js version**: Wrangler v4 requires Node.js v22+. Project uses nodejs-22 module. The `.replit` modules field was updated to `nodejs-22`.
+**Hocuspocus service**: Must run with `node --import tsx src/index.ts`, NOT bun. Unchanged.
 
-**Env vars for wrangler services**: Written to `.dev.vars` files dynamically at startup via `write_dev_vars()` in start.sh. This is how wrangler dev picks up secrets locally.
+**DB driver**: `packages/db/src/index.ts` uses `postgres-js` (drizzle-orm/postgres-js) with `ssl: 'prefer'` and `prepare: false`.
 
-**Adapter**: svelte.config.js uses `adapterCloudflare` when `CF_PAGES` env var is set, otherwise `adapterNode` (for Replit). Both adapters are installed.
+**Proxy body**: Gateway proxy routes must use `await c.req.arrayBuffer()` for POST/PUT body, NOT `c.req.raw.body` — ReadableStream can't be passed directly to Node.js `fetch()`.
+
+**better-auth trustedOrigins**: auth.ts always includes all localhost ports (5000-8084) in trustedOrigins so internal service-to-service calls aren't rejected by origin check.
