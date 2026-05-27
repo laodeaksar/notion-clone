@@ -10,21 +10,21 @@ declare global {
     interface PageData {
       user?:         { id: string; email: string; name: string | null } | null;
       pages?:        Array<{ id: string; title: string; parentId: string | null }>;
-      hocuspocusUrl?: string;
+      partyKitHost?: string;
     }
     interface Platform {
       env: {
-        API_GATEWAY_URL:      string;
-        JWT_SECRET:           string;
-        PUBLIC_HOCUSPOCUS_URL: string;
-        PAGE_SERVICE_URL?:    string;
-        AUTH_SERVICE_URL?:    string;
-        BLOCK_SERVICE_URL?:   string;
-        FILE_SERVICE_URL?:    string;
-        GATEWAY_ORIGIN?:      string;
-        AUTH_REQUIRED?:       string;
-        ALLOWED_ORIGINS?:     string;
-        [key: string]:        string | undefined;
+        API_GATEWAY_URL:       string;
+        JWT_SECRET:            string;
+        PUBLIC_PARTYKIT_HOST?: string;
+        PAGE_SERVICE_URL?:     string;
+        AUTH_SERVICE_URL?:     string;
+        BLOCK_SERVICE_URL?:    string;
+        FILE_SERVICE_URL?:     string;
+        GATEWAY_ORIGIN?:       string;
+        AUTH_REQUIRED?:        string;
+        ALLOWED_ORIGINS?:      string;
+        [key: string]:         string | undefined;
       };
       context: { waitUntil(promise: Promise<unknown>): void };
       caches:  CacheStorage & { default: Cache };

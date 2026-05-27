@@ -1,0 +1,21 @@
+{
+  "name": "@workspace/partykit-service",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev":    "partykit dev",
+    "deploy": "partykit deploy",
+    "build":  "tsc --noEmit"
+  },
+  "dependencies": {
+    "partykit":   "0.0.107",
+    "y-partykit": "0.0.14"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "y-websocket": "^2.1.0",
+    "ws": "^8.18.0",
+    "@types/ws": "^8.5.14"
+  }
+}

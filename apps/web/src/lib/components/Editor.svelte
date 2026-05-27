@@ -7,15 +7,15 @@
   import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
   import Link from '@tiptap/extension-link';
   import Image from '@tiptap/extension-image';
-  import { HocuspocusProvider } from '@hocuspocus/provider';
+  import YPartyKitProvider from 'y-partykit/provider';
   import * as Y from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
 
   interface PageData {
-    page?:          { id: string; title?: string } | null;
-    user?:          { id: string; email: string; name: string | null } | null;
-    hocuspocusUrl?: string;
-    sessionToken?:  string | null;
+    page?:         { id: string; title?: string } | null;
+    user?:         { id: string; email: string; name: string | null } | null;
+    partyKitHost?: string;
+    sessionToken?: string | null;
   }
 
   let { data }: { data: PageData } = $props();
@@ -23,7 +23,7 @@
   let editorContainer: HTMLDivElement | null      = null;
   let fileInput: HTMLInputElement | null           = null;
   let editor: Editor | null                        = null;
-  let provider: HocuspocusProvider | null         = null;
+  let provider: YPartyKitProvider | null          = null;
   let persistence: IndexeddbPersistence | null    = null;
 
   let showSlashMenu = $state(false);
@@ -79,7 +79,7 @@
       if (!data?.user) {
         sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
       }
-      provider?.setAwarenessField('user', { name: cursorName, color: cursorColor });
+      provider?.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
     }
     editingName = false;
   }
@@ -151,15 +151,16 @@
     const pageId = data.page?.id || 'page';
     const ydoc   = new Y.Doc();
 
-    // Persist document locally in IndexedDB so content loads instantly offline
     persistence = new IndexeddbPersistence(`page-${pageId}`, ydoc);
 
-    provider = new HocuspocusProvider({
-      url:      data.hocuspocusUrl ?? 'ws://localhost:1234',
-      document: ydoc,
-      name:     pageId,
-      token:    data.sessionToken ?? ''
-    });
+    provider = new YPartyKitProvider(
+      data.partyKitHost ?? 'localhost:1999',
+      pageId,
+      ydoc,
+      { params: { token: data.sessionToken ?? '' } }
+    );
+
+    provider.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
 
     const SlashMenuKeyboard = Extension.create({
       name: 'slashMenuKeyboard',
@@ -197,7 +198,7 @@
         Placeholder.configure({ placeholder: 'Start writing...' }),
         Link,
         Image,
-        Collaboration.configure({ document: ydoc.get('prosemirror', Y.XmlFragment) }),
+        Collaboration.configure({ document: ydoc }),
         CollaborationCursor.configure({ provider, user: { name: cursorName, color: cursorColor } }),
         SlashMenuKeyboard
       ],

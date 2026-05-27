@@ -6,6 +6,6 @@
   "rootDirectory": "apps/web",
   "env": {
     "PUBLIC_API_GATEWAY_URL": "@public_api_gateway_url",
-    "PUBLIC_HOCUSPOCUS_URL": "@public_hocuspocus_url"
+    "PUBLIC_PARTYKIT_HOST":   "@public_partykit_host"
   }
 }

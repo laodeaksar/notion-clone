@@ -51,7 +51,7 @@ jobs:
       page:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.page }}
       block:   ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.block }}
       file:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.file }}
-      hocus:   ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.hocus }}
+      partykit: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.partykit }}
       gateway: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.gateway }}
       web:     ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.web }}
     steps:
@@ -79,8 +79,8 @@ jobs:
               - 'services/file-service/**'
               - 'packages/shared/**'
               - 'packages/db/**'
-            hocus:
-              - 'services/hocuspocus-service/worker/**'
+            partykit:
+              - 'services/partykit-service/**'
             gateway:
               - 'apps/api-gateway/**'
               - 'packages/shared/**'
@@ -302,14 +302,16 @@ jobs:
           AUTH_REQUIRED:         ${{ vars.AUTH_REQUIRED }}
           ALLOWED_ORIGINS:       ${{ vars.ALLOWED_ORIGINS }}
 
-  # ── 5. hocuspocus-proxy ───────────────────────────────────────────────────
+  # ── 5. partykit-service ───────────────────────────────────────────────────
   #
-  # No DB dependency — only deploys when the worker source changes.
-  deploy-hocus:
-    name: Deploy hocuspocus-proxy → CF Workers
+  # No DB dependency — only deploys when partykit server source changes.
+  # Required GitHub Secret: PARTYKIT_TOKEN (from partykit.io dashboard)
+  # Required GitHub Variable: AUTH_SERVICE_URL (deployed auth-service URL)
+  deploy-partykit:
+    name: Deploy partykit-service → PartyKit
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.hocus == 'true'
+    if: needs.changes.outputs.partykit == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -321,17 +323,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager:   pnpm
-          workingDirectory: services/hocuspocus-service/worker
-          secrets: |
-            HOCUSPOCUS_BACKEND_URL
+      - name: Deploy to PartyKit
+        working-directory: services/partykit-service
+        run: npx partykit deploy
         env:
-          HOCUSPOCUS_BACKEND_URL: ${{ secrets.HOCUSPOCUS_BACKEND_URL }}
+          PARTYKIT_TOKEN:    ${{ secrets.PARTYKIT_TOKEN }}
+          AUTH_SERVICE_URL:  ${{ vars.AUTH_SERVICE_URL }}
+          AUTH_REQUIRED:     ${{ vars.AUTH_REQUIRED }}
 
   # ── 6. api-gateway ────────────────────────────────────────────────────────
   #
@@ -340,15 +338,15 @@ jobs:
   deploy-gateway:
     name: Deploy api-gateway → CF Workers
     runs-on: ubuntu-latest
-    needs: [changes, deploy-auth, deploy-page, deploy-block, deploy-file, deploy-hocus]
+    needs: [changes, deploy-auth, deploy-page, deploy-block, deploy-file, deploy-partykit]
     if: >-
       always() && !cancelled() &&
       needs.changes.outputs.gateway == 'true' &&
-      needs.deploy-auth.result  != 'failure' &&
-      needs.deploy-page.result  != 'failure' &&
-      needs.deploy-block.result != 'failure' &&
-      needs.deploy-file.result  != 'failure' &&
-      needs.deploy-hocus.result != 'failure'
+      needs.deploy-auth.result     != 'failure' &&
+      needs.deploy-page.result     != 'failure' &&
+      needs.deploy-block.result    != 'failure' &&
+      needs.deploy-file.result     != 'failure' &&
+      needs.deploy-partykit.result != 'failure'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -11,27 +11,6 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7
-    ports:
-      - '6379:6379'
-
-  hocuspocus-service:
-    build:
-      context: .
-      dockerfile: services/hocuspocus-service/Dockerfile
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/notion
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 1234
-      AUTH_REQUIRED: "false"
-      REDIS_URL: redis://redis:6379
-    ports:
-      - '1234:1234'
-    depends_on:
-      - postgres
-      - redis
-
   api-gateway:
     build:
       context: ./apps/api-gateway

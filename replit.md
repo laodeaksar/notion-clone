@@ -10,6 +10,7 @@ A full-stack Notion clone built as a monorepo with a SvelteKit frontend, microse
 - **Page Service** (`services/page-service`): **Hono + Valibot on Cloudflare Workers** — page CRUD with auth middleware. Deploy with `pnpm --filter @workspace/page-service deploy`.
 - **Block Service** (`services/block-service`): **Hono + Valibot on Cloudflare Workers** — content blocks CRUD with auth middleware. Deploy with `pnpm --filter @workspace/block-service deploy`.
 - **File Service** (`services/file-service`): **Hono + Valibot on Cloudflare Workers** — Cloudinary upload via REST API (fetch-based, no SDK). Deploy with `pnpm --filter @workspace/file-service deploy`.
+- **PartyKit Service** (`services/partykit-service`): **PartyKit (Cloudflare Durable Objects)** — real-time Yjs document collaboration. Each page is a PartyKit "party". Deploy with `npx partykit deploy` inside that directory.
 
 ## Package Manager
 
@@ -23,12 +24,13 @@ Uses **pnpm** workspaces with **Turborepo** for task orchestration.
 - `8082` — Page Service
 - `8083` — Auth Service
 - `8084` — File Service
+- `1999` — PartyKit dev server (real-time collaboration)
 
 ## Environment Variables
 
 - `PUBLIC_API_GATEWAY_URL` — Public URL for the API gateway (used in browser)
 - `API_GATEWAY_URL` — Server-side URL for the API gateway
-- `PUBLIC_HOCUSPOCUS_URL` — WebSocket URL for Hocuspocus real-time server
+- `PUBLIC_PARTYKIT_HOST` — PartyKit server host (no protocol), e.g. `notion-clone.username.partykit.dev`
 - `JWT_SECRET` — Used to derive `BETTER_AUTH_SECRET` for session signing
 - `BETTER_AUTH_SECRET` — Secret used by better-auth for session signing (auto-derived from JWT_SECRET in dev)
 - `DATABASE_URL` — PostgreSQL connection string (auto-set by Replit)
@@ -61,4 +63,4 @@ This starts all microservices in parallel and then the SvelteKit dev server.
 - Monorepo structure with pnpm workspaces
 - SvelteKit for frontend
 - Wrangler dev (Cloudflare Workers runtime) for microservices in development
-- Hocuspocus service runs with Node.js + tsx (not Bun) in the Replit environment
+- PartyKit service runs with `npx partykit dev` on port 1999 in the Replit environment
