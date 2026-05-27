@@ -10,30 +10,96 @@ concurrency:
   cancel-in-progress: true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deploy order:
+# Path-filtered deploy — only changed services are redeployed on each push.
+# workflow_dispatch always deploys everything (full redeploy).
 #
-#   migrate-db
-#       └──▶ deploy-auth  ──┐
-#       └──▶ deploy-page  ──┤
-#       └──▶ deploy-block ──┤──▶ deploy-gateway ──▶ deploy-web
-#       └──▶ deploy-file  ──┤
-#       └──▶ deploy-hocus ──┘
+# Deploy order (dependency graph):
 #
-# Services that don't depend on each other run in parallel.
-# Gateway waits for all upstream services.
-# Web (Cloudflare Pages) waits for gateway + hocuspocus-proxy to be live.
+#   changes (detect)
+#       └──▶ migrate-db
+#                └──▶ deploy-auth  ──┐
+#                └──▶ deploy-page  ──┤
+#                └──▶ deploy-block ──┤──▶ deploy-gateway ──▶ deploy-web
+#                └──▶ deploy-file  ──┤
+#                └──▶ deploy-hocus ──┘
+#
+# Path → job mapping (each filter also triggers on shared packages):
+#
+#   packages/db/**                    → migrate-db + all DB-using services
+#   packages/shared/**                → auth, page, block, file, gateway
+#   packages/ui/**                    → web
+#   services/auth-service/**          → deploy-auth
+#   services/page-service/**          → deploy-page
+#   services/block-service/**         → deploy-block
+#   services/file-service/**          → deploy-file
+#   services/hocuspocus-service/worker/** → deploy-hocus
+#   apps/api-gateway/**               → deploy-gateway
+#   apps/web/**                       → deploy-web
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
-  # ── 0. DB migrations ─────────────────────────────────────────────────────
-  migrate-db:
-    name: Run database migrations
+  # ── 0a. Detect changed paths ──────────────────────────────────────────────
+  #
+  # Uses dorny/paths-filter to emit boolean outputs per service.
+  # On workflow_dispatch every output is forced to 'true' so all jobs run.
+  changes:
+    name: Detect changed paths
     runs-on: ubuntu-latest
+    outputs:
+      db:      ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.db }}
+      auth:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.auth }}
+      page:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.page }}
+      block:   ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.block }}
+      file:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.file }}
+      hocus:   ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.hocus }}
+      gateway: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.gateway }}
+      web:     ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            db:
+              - 'packages/db/**'
+            auth:
+              - 'services/auth-service/**'
+              - 'packages/shared/**'
+              - 'packages/db/**'
+            page:
+              - 'services/page-service/**'
+              - 'packages/shared/**'
+              - 'packages/db/**'
+            block:
+              - 'services/block-service/**'
+              - 'packages/shared/**'
+              - 'packages/db/**'
+            file:
+              - 'services/file-service/**'
+              - 'packages/shared/**'
+              - 'packages/db/**'
+            hocus:
+              - 'services/hocuspocus-service/worker/**'
+            gateway:
+              - 'apps/api-gateway/**'
+              - 'packages/shared/**'
+            web:
+              - 'apps/web/**'
+              - 'packages/ui/**'
 
+  # ── 0b. DB migrations ─────────────────────────────────────────────────────
+  #
+  # Runs only when packages/db/** changes (schema/migrations) or on full
+  # workflow_dispatch. Must complete before any DB-backed service deploys.
+  migrate-db:
+    name: Run database migrations
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.db == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -48,11 +114,29 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+  # ── Helper: "ok-to-deploy" condition ─────────────────────────────────────
+  #
+  # All service jobs below share the same pattern:
+  #
+  #   needs: [changes, migrate-db]
+  #   if: >-
+  #     always() && !cancelled() &&
+  #     needs.changes.outputs.<service> == 'true' &&
+  #     (needs.migrate-db.result == 'success' || needs.migrate-db.result == 'skipped')
+  #
+  # `always()` is required so the job still evaluates when migrate-db is
+  # skipped (GitHub skips dependents of skipped jobs by default).
+  # Checking migrate-db.result ensures we don't deploy against a broken DB.
+
   # ── 1. auth-service ───────────────────────────────────────────────────────
   deploy-auth:
     name: Deploy auth-service → CF Workers
     runs-on: ubuntu-latest
-    needs: [migrate-db]
+    needs: [changes, migrate-db]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.auth == 'true' &&
+      (needs.migrate-db.result == 'success' || needs.migrate-db.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -90,7 +174,11 @@ jobs:
   deploy-page:
     name: Deploy page-service → CF Workers
     runs-on: ubuntu-latest
-    needs: [migrate-db]
+    needs: [changes, migrate-db]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.page == 'true' &&
+      (needs.migrate-db.result == 'success' || needs.migrate-db.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -128,7 +216,11 @@ jobs:
   deploy-block:
     name: Deploy block-service → CF Workers
     runs-on: ubuntu-latest
-    needs: [migrate-db]
+    needs: [changes, migrate-db]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.block == 'true' &&
+      (needs.migrate-db.result == 'success' || needs.migrate-db.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -166,7 +258,11 @@ jobs:
   deploy-file:
     name: Deploy file-service → CF Workers
     runs-on: ubuntu-latest
-    needs: [migrate-db]
+    needs: [changes, migrate-db]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.file == 'true' &&
+      (needs.migrate-db.result == 'success' || needs.migrate-db.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -208,19 +304,12 @@ jobs:
 
   # ── 5. hocuspocus-proxy ───────────────────────────────────────────────────
   #
-  # Thin CF Worker that proxies HTTP + WebSocket traffic to the real
-  # hocuspocus Node.js server (Replit VM / Fly.io / Railway / etc.).
-  #
-  # Required secret:
-  #   HOCUSPOCUS_BACKEND_URL — public HTTPS URL of the backend server,
-  #                            e.g. https://your-vm.replit.app
-  #
-  # The proxy worker itself has NO database dependency, so it can deploy
-  # in parallel with the other backend services.
+  # No DB dependency — only deploys when the worker source changes.
   deploy-hocus:
     name: Deploy hocuspocus-proxy → CF Workers
     runs-on: ubuntu-latest
-    needs: [migrate-db]
+    needs: [changes]
+    if: needs.changes.outputs.hocus == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -245,11 +334,21 @@ jobs:
           HOCUSPOCUS_BACKEND_URL: ${{ secrets.HOCUSPOCUS_BACKEND_URL }}
 
   # ── 6. api-gateway ────────────────────────────────────────────────────────
-  #       Runs after all upstream services are live.
+  #
+  # Waits for all upstream services (success OR skipped — not failed).
+  # Only deploys when gateway code or packages/shared changes.
   deploy-gateway:
     name: Deploy api-gateway → CF Workers
     runs-on: ubuntu-latest
-    needs: [deploy-auth, deploy-page, deploy-block, deploy-file, deploy-hocus]
+    needs: [changes, deploy-auth, deploy-page, deploy-block, deploy-file, deploy-hocus]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.gateway == 'true' &&
+      needs.deploy-auth.result  != 'failure' &&
+      needs.deploy-page.result  != 'failure' &&
+      needs.deploy-block.result != 'failure' &&
+      needs.deploy-file.result  != 'failure' &&
+      needs.deploy-hocus.result != 'failure'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -285,9 +384,8 @@ jobs:
 
   # ── 7. web → Vercel ───────────────────────────────────────────────────────
   #
-  # Builds the SvelteKit app with @sveltejs/adapter-vercel and deploys to
-  # Vercel production. Runs after gateway is live so PUBLIC_API_GATEWAY_URL
-  # and PUBLIC_HOCUSPOCUS_URL are baked in at build time.
+  # Waits for gateway (success OR skipped — not failed).
+  # Only deploys when apps/web/** or packages/ui/** changes.
   #
   # Required GitHub Secrets:
   #   VERCEL_TOKEN      — from vercel.com/account/tokens
@@ -301,7 +399,11 @@ jobs:
   deploy-web:
     name: Deploy web → Vercel
     runs-on: ubuntu-latest
-    needs: [deploy-gateway]
+    needs: [changes, deploy-gateway]
+    if: >-
+      always() && !cancelled() &&
+      needs.changes.outputs.web == 'true' &&
+      needs.deploy-gateway.result != 'failure'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
