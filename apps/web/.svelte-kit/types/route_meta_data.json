@@ -37,12 +37,21 @@
 		"src/routes/auth/+page.server.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/docs": [
+		"src/routes/docs/+server.ts"
+	],
 	"/files": [
 		"src/routes/files/+page.server.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/openapi.json": [
+		"src/routes/openapi.json/+server.ts"
+	],
 	"/page/[id]": [
 		"src/routes/page/[id]/+page.server.ts",
 		"src/routes/+layout.server.ts"
+	],
+	"/redoc": [
+		"src/routes/redoc/+server.ts"
 	]
 }

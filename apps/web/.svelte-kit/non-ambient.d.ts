@@ -29,7 +29,7 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/auth" | "/api/auth/logout" | "/api/comments" | "/api/comments/[id]" | "/api/comments/[id]/resolve" | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | "/api/pages/[id]" | "/api/search" | "/api/upload" | "/auth" | "/files" | "/page" | "/page/[id]";
+		RouteId(): "/" | "/api" | "/api/auth" | "/api/auth/logout" | "/api/comments" | "/api/comments/[id]" | "/api/comments/[id]/resolve" | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | "/api/pages/[id]" | "/api/search" | "/api/upload" | "/auth" | "/docs" | "/files" | "/openapi.json" | "/page" | "/page/[id]" | "/redoc";
 		RouteParams(): {
 			"/api/comments/[id]": { id: string };
 			"/api/comments/[id]/resolve": { id: string };
@@ -51,11 +51,14 @@ declare module "$app/types" {
 			"/api/search": Record<string, never>;
 			"/api/upload": Record<string, never>;
 			"/auth": Record<string, never>;
+			"/docs": Record<string, never>;
 			"/files": Record<string, never>;
+			"/openapi.json": Record<string, never>;
 			"/page": { id?: string | undefined };
-			"/page/[id]": { id: string }
+			"/page/[id]": { id: string };
+			"/redoc": Record<string, never>
 		};
-		Pathname(): "/" | "/api/auth/logout" | "/api/comments" | `/api/comments/${string}` & {} | `/api/comments/${string}/resolve` & {} | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | `/api/pages/${string}` & {} | "/api/search" | "/api/upload" | "/auth" | "/files" | `/page/${string}` & {};
+		Pathname(): "/" | "/api/auth/logout" | "/api/comments" | `/api/comments/${string}` & {} | `/api/comments/${string}/resolve` & {} | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | `/api/pages/${string}` & {} | "/api/search" | "/api/upload" | "/auth" | "/docs" | "/files" | "/openapi.json" | `/page/${string}` & {} | "/redoc";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}
