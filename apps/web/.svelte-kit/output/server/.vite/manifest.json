@@ -164,7 +164,7 @@
       "_dev.js"
     ],
     "css": [
-      "_app/immutable/assets/_layout.DOLUqhnu.css"
+      "_app/immutable/assets/_layout.t-WmEbse.css"
     ]
   },
   "src/routes/+page.svelte": {
@@ -185,6 +185,36 @@
       "_env.js"
     ]
   },
+  "src/routes/api/comments/+server.ts": {
+    "file": "entries/endpoints/api/comments/_server.ts.js",
+    "name": "entries/endpoints/api/comments/_server.ts",
+    "src": "src/routes/api/comments/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js",
+      "_jwt.js"
+    ]
+  },
+  "src/routes/api/comments/[id]/+server.ts": {
+    "file": "entries/endpoints/api/comments/_id_/_server.ts.js",
+    "name": "entries/endpoints/api/comments/_id_/_server.ts",
+    "src": "src/routes/api/comments/[id]/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js",
+      "_jwt.js"
+    ]
+  },
+  "src/routes/api/comments/[id]/resolve/+server.ts": {
+    "file": "entries/endpoints/api/comments/_id_/resolve/_server.ts.js",
+    "name": "entries/endpoints/api/comments/_id_/resolve/_server.ts",
+    "src": "src/routes/api/comments/[id]/resolve/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js",
+      "_jwt.js"
+    ]
+  },
   "src/routes/api/files/+server.ts": {
     "file": "entries/endpoints/api/files/_server.ts.js",
     "name": "entries/endpoints/api/files/_server.ts",
@@ -193,6 +223,15 @@
     "imports": [
       "_env.js",
       "_jwt.js"
+    ]
+  },
+  "src/routes/api/liveblocks-auth/+server.ts": {
+    "file": "entries/endpoints/api/liveblocks-auth/_server.ts.js",
+    "name": "entries/endpoints/api/liveblocks-auth/_server.ts",
+    "src": "src/routes/api/liveblocks-auth/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js"
     ]
   },
   "src/routes/api/pages/+server.ts": {
@@ -254,6 +293,15 @@
       "_dev.js"
     ]
   },
+  "src/routes/docs/+server.ts": {
+    "file": "entries/endpoints/docs/_server.ts.js",
+    "name": "entries/endpoints/docs/_server.ts",
+    "src": "src/routes/docs/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js"
+    ]
+  },
   "src/routes/files/+page.server.ts": {
     "file": "entries/pages/files/_page.server.ts.js",
     "name": "entries/pages/files/_page.server.ts",
@@ -271,6 +319,15 @@
     "imports": [
       "_utils2.js",
       "_dev.js"
+    ]
+  },
+  "src/routes/openapi.json/+server.ts": {
+    "file": "entries/endpoints/openapi.json/_server.ts.js",
+    "name": "entries/endpoints/openapi.json/_server.ts",
+    "src": "src/routes/openapi.json/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js"
     ]
   },
   "src/routes/page/[id]/+page.server.ts": {
@@ -292,6 +349,15 @@
       "_queue.js",
       "_navigation.js",
       "_dev.js"
+    ]
+  },
+  "src/routes/redoc/+server.ts": {
+    "file": "entries/endpoints/redoc/_server.ts.js",
+    "name": "entries/endpoints/redoc/_server.ts",
+    "src": "src/routes/redoc/+server.ts",
+    "isEntry": true,
+    "imports": [
+      "_env.js"
     ]
   }
 }

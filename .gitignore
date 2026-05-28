@@ -28,6 +28,8 @@ dist
 .nitro
 .tanstack
 .vinxi
+.svelte-kit
+build
 
 # Debug
 npm-debug.log*

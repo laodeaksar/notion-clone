@@ -2,7 +2,7 @@ import { t as getEnv } from "../../../../../chunks/env.js";
 import { t as signServerJWT } from "../../../../../chunks/jwt.js";
 //#region src/routes/api/pages/[id]/+server.ts
 function getToken(event) {
-	const userToken = event.cookies.get("token");
+	const userToken = event.cookies.get("better-auth.session_token");
 	if (userToken) return Promise.resolve(userToken);
 	return signServerJWT(getEnv(event.platform, "JWT_SECRET"));
 }

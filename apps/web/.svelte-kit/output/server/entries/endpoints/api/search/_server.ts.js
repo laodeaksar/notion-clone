@@ -1,7 +1,7 @@
 import { t as getEnv } from "../../../../chunks/env.js";
 //#region src/routes/api/search/+server.ts
 async function GET(event) {
-	const token = event.cookies.get("token");
+	const token = event.cookies.get("better-auth.session_token");
 	if (!token) return new Response(JSON.stringify({
 		query: "",
 		results: []

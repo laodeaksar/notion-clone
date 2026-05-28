@@ -4,6 +4,14 @@ import { fail, redirect } from "@sveltejs/kit";
 var load = ({ locals }) => {
 	if (locals.user) throw redirect(302, "/");
 };
+function setSessionCookie(cookies, token) {
+	cookies.set("better-auth.session_token", token, {
+		httpOnly: true,
+		path: "/",
+		sameSite: "lax",
+		maxAge: 3600 * 24 * 7
+	});
+}
 var actions = {
 	login: async ({ request, cookies, fetch, platform }) => {
 		const API_GATEWAY_URL = getEnv(platform, "API_GATEWAY_URL");
@@ -14,25 +22,27 @@ var actions = {
 			error: "Email and password are required",
 			email
 		});
-		const res = await fetch(`${API_GATEWAY_URL}/auth/login`, {
+		const res = await fetch(`${API_GATEWAY_URL}/auth/sign-in/email`, {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: {
+				"content-type": "application/json",
+				"origin": "http://localhost:5000"
+			},
 			body: JSON.stringify({
 				email,
 				password
 			})
 		});
 		const body = await res.json().catch(() => ({}));
-		if (!res.ok) return fail(res.status, {
-			error: body.error ?? "Invalid credentials",
-			email
-		});
-		if (body.token) cookies.set("token", body.token, {
-			httpOnly: true,
-			path: "/",
-			sameSite: "lax",
-			maxAge: 3600 * 24 * 7
-		});
+		if (!res.ok) {
+			const msg = body.message ?? body.error ?? "Invalid email or password";
+			return fail(res.status, {
+				error: msg,
+				email
+			});
+		}
+		const loginToken = body.token ?? body.session?.token;
+		if (loginToken) setSessionCookie(cookies, loginToken);
 		throw redirect(302, "/");
 	},
 	register: async ({ request, cookies, fetch, platform }) => {
@@ -51,36 +61,29 @@ var actions = {
 			email,
 			name
 		});
-		const regRes = await fetch(`${API_GATEWAY_URL}/auth/register`, {
+		const res = await fetch(`${API_GATEWAY_URL}/auth/sign-up/email`, {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: {
+				"content-type": "application/json",
+				"origin": "http://localhost:5000"
+			},
 			body: JSON.stringify({
 				email,
 				password,
-				name
+				name: name ?? email.split("@")[0]
 			})
 		});
-		const regBody = await regRes.json().catch(() => ({}));
-		if (!regRes.ok) return fail(regRes.status, {
-			error: regBody.error ?? "Registration failed",
-			email,
-			name
-		});
-		const loginRes = await fetch(`${API_GATEWAY_URL}/auth/login`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
+		const body = await res.json().catch(() => ({}));
+		if (!res.ok) {
+			const msg = body.message ?? body.error ?? "Registration failed";
+			return fail(res.status, {
+				error: msg,
 				email,
-				password
-			})
-		});
-		const loginBody = await loginRes.json().catch(() => ({}));
-		if (loginRes.ok && loginBody.token) cookies.set("token", loginBody.token, {
-			httpOnly: true,
-			path: "/",
-			sameSite: "lax",
-			maxAge: 3600 * 24 * 7
-		});
+				name
+			});
+		}
+		const regToken = body.token ?? body.session?.token;
+		if (regToken) setSessionCookie(cookies, regToken);
 		throw redirect(302, "/");
 	}
 };

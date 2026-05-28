@@ -3335,7 +3335,7 @@ async function internal_respond(request, options, manifest, state) {
 		cookies,
 		fetch: null,
 		getClientAddress: state.getClientAddress || (() => {
-			throw new Error(`@sveltejs/adapter-vercel does not specify getClientAddress. Please raise an issue`);
+			throw new Error(`@sveltejs/adapter-node does not specify getClientAddress. Please raise an issue`);
 		}),
 		locals: {},
 		params: {},

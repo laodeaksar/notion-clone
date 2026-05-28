@@ -3,17 +3,16 @@ import { t as getEnv } from "../../chunks/env.js";
 var load = async ({ locals, cookies, depends, platform }) => {
 	depends("app:pages");
 	const user = locals.user ?? null;
-	const hocuspocusUrl = getEnv(platform, "PUBLIC_HOCUSPOCUS_URL") || "ws://localhost:1234";
 	if (!user) return {
 		user,
 		pages: [],
-		hocuspocusUrl
+		sessionToken: null
 	};
-	const token = cookies.get("token");
+	const token = locals.sessionToken ?? cookies.get("better-auth.session_token");
 	if (!token) return {
 		user,
 		pages: [],
-		hocuspocusUrl
+		sessionToken: null
 	};
 	const API_GATEWAY_URL = getEnv(platform, "API_GATEWAY_URL");
 	try {
@@ -21,19 +20,19 @@ var load = async ({ locals, cookies, depends, platform }) => {
 		if (!res.ok) return {
 			user,
 			pages: [],
-			hocuspocusUrl
+			sessionToken: token
 		};
 		const { pages } = await res.json();
 		return {
 			user,
-			hocuspocusUrl,
+			sessionToken: token,
 			pages: pages ?? []
 		};
 	} catch {
 		return {
 			user,
 			pages: [],
-			hocuspocusUrl
+			sessionToken: token
 		};
 	}
 };
