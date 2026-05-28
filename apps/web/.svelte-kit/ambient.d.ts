@@ -71,7 +71,6 @@ declare module '$env/static/private' {
 	export const REPL_ID: string;
 	export const AUTH_SERVICE_URL: string;
 	export const HOME: string;
-	export const LIVEBLOCKS_SECRET_KEY: string;
 	export const LANG: string;
 	export const CONNECTORS_HOSTNAME: string;
 	export const REPL_IDENTITY: string;
@@ -258,7 +257,6 @@ declare module '$env/dynamic/private' {
 		REPL_ID: string;
 		AUTH_SERVICE_URL: string;
 		HOME: string;
-		LIVEBLOCKS_SECRET_KEY: string;
 		LANG: string;
 		CONNECTORS_HOSTNAME: string;
 		REPL_IDENTITY: string;
