@@ -18,6 +18,13 @@
     sessionToken?: string | null;
   }
 
+  type OtherUser = {
+    connectionId: number;
+    name: string;
+    color: string;
+    initials: string;
+  };
+
   let { data }: { data: PageData } = $props();
 
   let editorContainer: HTMLDivElement | null   = null;
@@ -26,27 +33,48 @@
   let provider: LiveblocksProvider | null       = null;
   let persistence: IndexeddbPersistence | null  = null;
   let client: ReturnType<typeof createClient> | null = null;
+  let leaveRoom: (() => void) | null            = null;
 
   let showSlashMenu = $state(false);
   let activeIndex   = $state(0);
   let menuPosition  = $state({ top: 0, left: 0 });
 
-  let cursorName:  string  = $state('Anonymous');
-  let cursorColor: string  = $state('#7C3AED');
-  let editingName: boolean = $state(false);
-  let nameInput:   string  = $state('');
+  let cursorName:  string     = $state('Anonymous');
+  let cursorColor: string     = $state('#7C3AED');
+  let editingName: boolean    = $state(false);
+  let nameInput:   string     = $state('');
+  let others:      OtherUser[] = $state([]);
+  let tooltipId:   number | null = $state(null);
+
+  const MAX_AVATARS = 3;
 
   const CURSOR_COLORS = [
     '#7C3AED', '#2563EB', '#059669', '#D97706',
     '#DC2626', '#DB2777', '#0891B2', '#65A30D'
   ];
 
+  function hashStr(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) { h = (Math.imul(31, h) + s.charCodeAt(i)) | 0; }
+    return h;
+  }
+
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function colorForId(id: string): string {
+    return CURSOR_COLORS[Math.abs(hashStr(id)) % CURSOR_COLORS.length];
+  }
+
   function initIdentity() {
     const loggedInUser = data?.user as { id: string; email: string; name: string | null } | null | undefined;
 
     if (loggedInUser) {
       cursorName  = loggedInUser.name ?? loggedInUser.email;
-      cursorColor = CURSOR_COLORS[Math.abs(hashStr(loggedInUser.id)) % CURSOR_COLORS.length];
+      cursorColor = colorForId(loggedInUser.id);
       return;
     }
 
@@ -65,12 +93,6 @@
     cursorName  = `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
     cursorColor = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)];
     sessionStorage.setItem('editor-identity', JSON.stringify({ name: cursorName, color: cursorColor }));
-  }
-
-  function hashStr(s: string): number {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) { h = (Math.imul(31, h) + s.charCodeAt(i)) | 0; }
-    return h;
   }
 
   function saveName() {
@@ -166,9 +188,22 @@
     });
 
     const { room, leave } = client.enterRoom(pageId);
+    leaveRoom = leave;
+
+    // Subscribe to others presence
+    const unsubOthers = room.subscribe('others', (lbOthers) => {
+      others = lbOthers.map((o) => {
+        const name = (o.info as any)?.name ?? `User ${o.connectionId}`;
+        return {
+          connectionId: o.connectionId,
+          name,
+          color:    colorForId(String(o.id ?? o.connectionId)),
+          initials: getInitials(name)
+        };
+      });
+    });
 
     provider = new LiveblocksProvider(room, ydoc);
-
     provider.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
 
     const SlashMenuKeyboard = Extension.create({
@@ -216,7 +251,7 @@
     });
 
     return () => {
-      leave();
+      unsubOthers();
     };
   });
 
@@ -224,6 +259,7 @@
     persistence?.destroy();
     provider?.destroy();
     editor?.destroy();
+    leaveRoom?.();
   });
 </script>
 
@@ -231,6 +267,8 @@
 
   <!-- Identity bar -->
   <div class="mb-4 flex items-center gap-2">
+
+    <!-- Self identity (left) -->
     <span class="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style="background:{cursorColor}"></span>
     {#if editingName}
       <form class="flex items-center gap-1.5" onsubmit={(e) => { e.preventDefault(); saveName(); }}>
@@ -265,6 +303,62 @@
         >Change</button>
       {/if}
     {/if}
+
+    <!-- Spacer -->
+    <div class="flex-1"></div>
+
+    <!-- Presence avatars (right) -->
+    {#if others.length > 0}
+      <div class="flex items-center gap-1">
+        <!-- "X viewing" label -->
+        <span class="mr-1 text-[10px] text-slate-400">
+          {others.length === 1 ? '1 other' : `${others.length} others`} here
+        </span>
+
+        <!-- Avatar stack -->
+        <div class="flex items-center -space-x-2">
+          {#each others.slice(0, MAX_AVATARS) as other (other.connectionId)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="relative flex h-7 w-7 flex-shrink-0 cursor-default items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm transition-transform hover:z-10 hover:scale-110"
+              style="background: {other.color};"
+              onmouseenter={() => { tooltipId = other.connectionId; }}
+              onmouseleave={() => { tooltipId = null; }}
+            >
+              {other.initials}
+
+              <!-- Tooltip -->
+              {#if tooltipId === other.connectionId}
+                <div
+                  class="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-md"
+                >
+                  {other.name}
+                  <!-- Arrow -->
+                  <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                </div>
+              {/if}
+            </div>
+          {/each}
+
+          <!-- Overflow badge -->
+          {#if others.length > MAX_AVATARS}
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm"
+              title="{others.slice(MAX_AVATARS).map(o => o.name).join(', ')}"
+            >
+              +{others.length - MAX_AVATARS}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Live pulse dot -->
+        <span class="relative ml-1 flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+        </span>
+      </div>
+    {/if}
+
   </div>
 
   <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
