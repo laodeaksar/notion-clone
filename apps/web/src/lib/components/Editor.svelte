@@ -8,7 +8,7 @@
   import Link                    from '@tiptap/extension-link';
   import Image                   from '@tiptap/extension-image';
   import { createClient }        from '@liveblocks/client';
-  import LiveblocksProvider      from '@liveblocks/yjs';
+  import { LiveblocksYjsProvider } from '@liveblocks/yjs';
   import * as Y                  from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
   import { CommentMark }         from '$lib/editor/CommentMark';
@@ -42,7 +42,7 @@
   let editorContainer: HTMLDivElement | null         = null;
   let fileInput:        HTMLInputElement | null       = null;
   let editor:           Editor | null                = null;
-  let provider:         LiveblocksProvider | null    = null;
+  let provider:         LiveblocksYjsProvider | null = null;
   let persistence:      IndexeddbPersistence | null  = null;
   let client:           ReturnType<typeof createClient> | null = null;
   let leaveRoom:        (() => void) | null          = null;
@@ -290,7 +290,7 @@
       others  = Array.from(nextMap.values());
     });
 
-    provider = new LiveblocksProvider(room, ydoc);
+    provider = new LiveblocksYjsProvider(room, ydoc);
     provider.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
 
     // ── TipTap ─────────────────────────────────────────────────────────────────
@@ -309,7 +309,7 @@
     editor = new Editor({
       element:    editorContainer as HTMLElement,
       extensions: [
-        StarterKit.configure({ history: false, link: false }),
+        StarterKit.configure({ link: false }),
         Placeholder.configure({ placeholder: 'Start writing…' }),
         Link,
         Image,
