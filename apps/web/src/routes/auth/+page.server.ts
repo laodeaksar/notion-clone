@@ -40,7 +40,7 @@ export const actions: Actions = {
 
     const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-in/email`, {
       method:  'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'origin': 'http://localhost:5000' },
       body:    JSON.stringify({ email, password })
     });
 
@@ -75,7 +75,7 @@ export const actions: Actions = {
 
     const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-up/email`, {
       method:  'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'origin': 'http://localhost:5000' },
       body:    JSON.stringify({ email, password, name: name ?? email.split('@')[0] })
     });
 
