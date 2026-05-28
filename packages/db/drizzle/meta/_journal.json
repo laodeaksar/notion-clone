@@ -57,6 +57,13 @@
       "when": 1748304000000,
       "tag": "0007_add_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1748390400000,
+      "tag": "0008_add_page_comments",
+      "breakpoints": true
     }
   ]
 }

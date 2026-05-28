@@ -138,6 +138,23 @@ export const files = pgTable('files', {
   index('idx_files_page_created').on(t.pageId, t.createdAt),
 ]);
 
+export const pageComments = pgTable('page_comments', {
+  id:        varchar('id', { length: 36 }).primaryKey(),
+  pageId:    varchar('page_id', { length: 36 }).notNull()
+               .references(() => pages.id, { onDelete: 'cascade' }),
+  userId:    varchar('user_id', { length: 36 })
+               .references(() => users.id, { onDelete: 'set null' }),
+  userName:  varchar('user_name', { length: 255 }),
+  quote:     text('quote').notNull(),
+  text:      text('text').notNull(),
+  resolved:  boolean('resolved').notNull().default(false),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull()
+}, (t) => [
+  index('idx_page_comments_page_id').on(t.pageId),
+  index('idx_page_comments_user_id').on(t.userId)
+]);
+
 export const searchIndex = pgTable('search_index', {
   id:         varchar('id', { length: 36 }).primaryKey(),
   entityType: varchar('entity_type', { length: 20 }).notNull(),

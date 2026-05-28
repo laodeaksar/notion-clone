@@ -5,3 +5,17 @@ body {
   font-family: system-ui, sans-serif;
   background: #f8fafc;
 }
+
+/* ── Inline comment highlight (TipTap CommentMark) ── */
+mark.comment-highlight {
+  background:    rgba(254, 240, 138, 0.65);
+  border-bottom: 2px solid #d97706;
+  border-radius: 2px;
+  cursor:        pointer;
+  padding:       0 1px;
+  transition:    background 0.15s;
+}
+mark.comment-highlight:hover,
+mark.comment-highlight.active {
+  background: rgba(253, 224, 71, 0.85);
+}

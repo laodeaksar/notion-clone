@@ -1,16 +1,19 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { Editor, Extension } from '@tiptap/core';
-  import StarterKit from '@tiptap/starter-kit';
-  import Placeholder from '@tiptap/extension-placeholder';
-  import Collaboration from '@tiptap/extension-collaboration';
-  import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
-  import Link from '@tiptap/extension-link';
-  import Image from '@tiptap/extension-image';
-  import { createClient } from '@liveblocks/client';
-  import LiveblocksProvider from '@liveblocks/yjs';
-  import * as Y from 'yjs';
+  import { Editor, Extension }  from '@tiptap/core';
+  import StarterKit              from '@tiptap/starter-kit';
+  import Placeholder             from '@tiptap/extension-placeholder';
+  import Collaboration           from '@tiptap/extension-collaboration';
+  import CollaborationCursor     from '@tiptap/extension-collaboration-cursor';
+  import Link                    from '@tiptap/extension-link';
+  import Image                   from '@tiptap/extension-image';
+  import { createClient }        from '@liveblocks/client';
+  import LiveblocksProvider      from '@liveblocks/yjs';
+  import * as Y                  from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
+  import { CommentMark }         from '$lib/editor/CommentMark';
+  import CommentPopover          from '$lib/components/CommentPopover.svelte';
+  import CommentsSidebar, { type PageComment } from '$lib/components/CommentsSidebar.svelte';
 
   interface PageData {
     page?:         { id: string; title?: string } | null;
@@ -20,9 +23,9 @@
 
   type OtherUser = {
     connectionId: number;
-    name: string;
-    color: string;
-    initials: string;
+    name:         string;
+    color:        string;
+    initials:     string;
   };
 
   type Toast = {
@@ -36,13 +39,13 @@
 
   let { data }: { data: PageData } = $props();
 
-  let editorContainer: HTMLDivElement | null        = null;
-  let fileInput: HTMLInputElement | null             = null;
-  let editor: Editor | null                          = null;
-  let provider: LiveblocksProvider | null            = null;
-  let persistence: IndexeddbPersistence | null       = null;
-  let client: ReturnType<typeof createClient> | null = null;
-  let leaveRoom: (() => void) | null                 = null;
+  let editorContainer: HTMLDivElement | null         = null;
+  let fileInput:        HTMLInputElement | null       = null;
+  let editor:           Editor | null                = null;
+  let provider:         LiveblocksProvider | null    = null;
+  let persistence:      IndexeddbPersistence | null  = null;
+  let client:           ReturnType<typeof createClient> | null = null;
+  let leaveRoom:        (() => void) | null          = null;
 
   let showSlashMenu = $state(false);
   let activeIndex   = $state(0);
@@ -55,6 +58,11 @@
   let others:      OtherUser[] = $state([]);
   let tooltipId:   number | null = $state(null);
   let toasts:      Toast[]     = $state([]);
+
+  // ── Comments state ──────────────────────────────────────────────────────────
+  let comments:        PageComment[] = $state([]);
+  let activeCommentId: string | null = $state(null);
+  let showSidebar:     boolean       = $state(false);
 
   let toastCounter = 0;
 
@@ -83,23 +91,16 @@
     return CURSOR_COLORS[Math.abs(hashStr(id)) % CURSOR_COLORS.length];
   }
 
+  // ── Toast helpers ────────────────────────────────────────────────────────────
+
   function pushToast(name: string, color: string, kind: 'join' | 'leave') {
     const id: number = ++toastCounter;
     const toast: Toast = { id, name, initials: getInitials(name), color, kind, visible: false };
     toasts = [...toasts, toast];
-
-    // Trigger enter animation on next tick
-    setTimeout(() => {
-      toasts = toasts.map(t => t.id === id ? { ...t, visible: true } : t);
-    }, 16);
-
-    // Start exit animation
+    setTimeout(() => { toasts = toasts.map(t => t.id === id ? { ...t, visible: true } : t); }, 16);
     setTimeout(() => {
       toasts = toasts.map(t => t.id === id ? { ...t, visible: false } : t);
-      // Remove after fade-out
-      setTimeout(() => {
-        toasts = toasts.filter(t => t.id !== id);
-      }, FADE_DELAY);
+      setTimeout(() => { toasts = toasts.filter(t => t.id !== id); }, FADE_DELAY);
     }, TOAST_TIMEOUT);
   }
 
@@ -107,6 +108,8 @@
     toasts = toasts.map(t => t.id === id ? { ...t, visible: false } : t);
     setTimeout(() => { toasts = toasts.filter(t => t.id !== id); }, FADE_DELAY);
   }
+
+  // ── Identity ─────────────────────────────────────────────────────────────────
 
   function initIdentity() {
     const loggedInUser = data?.user as { id: string; email: string; name: string | null } | null | undefined;
@@ -144,6 +147,37 @@
     editingName = false;
   }
 
+  // ── Comments API ─────────────────────────────────────────────────────────────
+
+  async function loadComments(pageId: string) {
+    try {
+      const res = await fetch(`/api/comments?pageId=${encodeURIComponent(pageId)}`);
+      if (!res.ok) return;
+      const { comments: list } = await res.json();
+      comments = list ?? [];
+    } catch (err) {
+      console.error('[Editor] loadComments error:', err);
+    }
+  }
+
+  function handleCommentCreated(commentId: string) {
+    const pageId = data.page?.id;
+    if (pageId) loadComments(pageId);
+    activeCommentId = commentId;
+    showSidebar     = true;
+  }
+
+  function handleCommentResolved(commentId: string) {
+    comments = comments.filter(c => c.id !== commentId);
+  }
+
+  function handleCommentDeleted(commentId: string) {
+    comments = comments.filter(c => c.id !== commentId);
+    if (activeCommentId === commentId) activeCommentId = null;
+  }
+
+  // ── Slash menu ────────────────────────────────────────────────────────────────
+
   const slashItems = [
     { icon: 'H1', label: 'Heading 1',     action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
     { icon: 'H2', label: 'Heading 2',     action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
@@ -154,7 +188,7 @@
 
   const toBase64 = (file: File) =>
     new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
+      const reader  = new FileReader();
       reader.onload  = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(file);
@@ -227,76 +261,47 @@
     const { room, leave } = client.enterRoom(pageId);
     leaveRoom = leave;
 
-    // Track previous connection IDs to detect joins / leaves
-    let prevIds = new Set<number>();
+    // ── Presence (join / leave toasts) ────────────────────────────────────────
+    let prevIds       = new Set<number>();
     let isFirstUpdate = true;
 
     const unsubOthers = room.subscribe('others', (lbOthers) => {
       const nextMap = new Map<number, OtherUser>();
-
       for (const o of lbOthers) {
-        const name = (o.info as any)?.name ?? `User ${o.connectionId}`;
+        const name  = (o.info as any)?.name ?? `User ${o.connectionId}`;
         const color = colorForId(String(o.id ?? o.connectionId));
-        nextMap.set(o.connectionId, {
-          connectionId: o.connectionId,
-          name,
-          color,
-          initials: getInitials(name)
-        });
+        nextMap.set(o.connectionId, { connectionId: o.connectionId, name, color, initials: getInitials(name) });
       }
-
       if (!isFirstUpdate) {
-        // Detect joins
         for (const [connId, user] of nextMap) {
-          if (!prevIds.has(connId)) {
-            pushToast(user.name, user.color, 'join');
-          }
+          if (!prevIds.has(connId)) pushToast(user.name, user.color, 'join');
         }
-        // Detect leaves
         for (const connId of prevIds) {
           if (!nextMap.has(connId)) {
-            // Find name from previous others list
-            const prev = others.find(o => o.connectionId === connId);
-            const name = prev?.name ?? 'Someone';
+            const prev  = others.find(o => o.connectionId === connId);
+            const name  = prev?.name  ?? 'Someone';
             const color = prev?.color ?? '#94A3B8';
             pushToast(name, color, 'leave');
           }
         }
       }
-
       isFirstUpdate = false;
       prevIds = new Set(nextMap.keys());
-      others = Array.from(nextMap.values());
+      others  = Array.from(nextMap.values());
     });
 
     provider = new LiveblocksProvider(room, ydoc);
     provider.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
 
+    // ── TipTap ─────────────────────────────────────────────────────────────────
     const SlashMenuKeyboard = Extension.create({
       name: 'slashMenuKeyboard',
       addKeyboardShortcuts() {
         return {
-          ArrowDown: () => {
-            if (!showSlashMenu) return false;
-            activeIndex = (activeIndex + 1) % slashItems.length;
-            return true;
-          },
-          ArrowUp: () => {
-            if (!showSlashMenu) return false;
-            activeIndex = (activeIndex - 1 + slashItems.length) % slashItems.length;
-            return true;
-          },
-          Enter: () => {
-            if (!showSlashMenu) return false;
-            insertSlashCommand(slashItems[activeIndex]);
-            return true;
-          },
-          Escape: () => {
-            if (!showSlashMenu) return false;
-            showSlashMenu = false;
-            activeIndex   = 0;
-            return true;
-          }
+          ArrowDown: () => { if (!showSlashMenu) return false; activeIndex = (activeIndex + 1) % slashItems.length; return true; },
+          ArrowUp:   () => { if (!showSlashMenu) return false; activeIndex = (activeIndex - 1 + slashItems.length) % slashItems.length; return true; },
+          Enter:     () => { if (!showSlashMenu) return false; insertSlashCommand(slashItems[activeIndex]); return true; },
+          Escape:    () => { if (!showSlashMenu) return false; showSlashMenu = false; activeIndex = 0; return true; }
         };
       }
     });
@@ -305,9 +310,10 @@
       element:    editorContainer as HTMLElement,
       extensions: [
         StarterKit.configure({ history: false, link: false }),
-        Placeholder.configure({ placeholder: 'Start writing...' }),
+        Placeholder.configure({ placeholder: 'Start writing…' }),
         Link,
         Image,
+        CommentMark,
         Collaboration.configure({ document: ydoc }),
         CollaborationCursor.configure({ provider, user: { name: cursorName, color: cursorColor } }),
         SlashMenuKeyboard
@@ -316,9 +322,21 @@
       onSelectionUpdate: updateSlashMenu
     });
 
-    return () => {
-      unsubOthers();
-    };
+    // ── Detect comment mark clicks ─────────────────────────────────────────────
+    editorContainer?.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const mark   = target.closest('mark[data-comment-id]') as HTMLElement | null;
+      if (mark) {
+        const cid = mark.dataset.commentId ?? null;
+        activeCommentId = cid;
+        showSidebar     = true;
+      }
+    });
+
+    // ── Load comments ─────────────────────────────────────────────────────────
+    loadComments(pageId);
+
+    return () => { unsubOthers(); };
   });
 
   onDestroy(() => {
@@ -329,40 +347,25 @@
   });
 </script>
 
-<!-- Toast portal (fixed, bottom-right) -->
+<!-- ── Toast portal ──────────────────────────────────────────────────────────── -->
 <div class="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-2">
   {#each toasts as toast (toast.id)}
     <div
       class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg
              transition-all duration-300 ease-out"
-      style="
-        opacity: {toast.visible ? 1 : 0};
-        transform: translateY({toast.visible ? 0 : 12}px) scale({toast.visible ? 1 : 0.95});
-      "
+      style="opacity:{toast.visible?1:0};transform:translateY({toast.visible?0:12}px) scale({toast.visible?1:0.95})"
     >
-      <!-- Avatar -->
-      <div
-        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
-        style="background: {toast.color};"
-      >
-        {toast.initials}
-      </div>
-
-      <!-- Message -->
+      <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
+           style="background:{toast.color};">{toast.initials}</div>
       <div class="min-w-0">
         <p class="truncate text-sm font-semibold text-slate-800">{toast.name}</p>
-        <p class="text-xs {toast.kind === 'join' ? 'text-emerald-600' : 'text-slate-400'}">
-          {toast.kind === 'join' ? '● joined this page' : '○ left this page'}
+        <p class="text-xs {toast.kind==='join'?'text-emerald-600':'text-slate-400'}">
+          {toast.kind==='join'?'● joined this page':'○ left this page'}
         </p>
       </div>
-
-      <!-- Dismiss button -->
-      <button
-        type="button"
+      <button type="button"
         class="ml-1 flex-shrink-0 rounded-lg p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors"
-        onclick={() => dismissToast(toast.id)}
-        aria-label="Dismiss"
-      >
+        onclick={() => dismissToast(toast.id)} aria-label="Dismiss">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
           <path d="M18 6 6 18M6 6l12 12"/>
@@ -372,63 +375,66 @@
   {/each}
 </div>
 
-<div class="relative rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+<!-- ── Main editor card ───────────────────────────────────────────────────────── -->
+<div class="rounded-3xl border border-slate-200 bg-white shadow-sm">
 
-  <!-- Identity bar -->
-  <div class="mb-4 flex items-center gap-2">
+  <!-- Identity + presence bar -->
+  <div class="flex items-center gap-2 border-b border-slate-100 px-6 py-3">
 
-    <!-- Self identity (left) -->
     <span class="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style="background:{cursorColor}"></span>
+
     {#if editingName}
       <form class="flex items-center gap-1.5" onsubmit={(e) => { e.preventDefault(); saveName(); }}>
-        <input
-          type="text"
-          bind:value={nameInput}
-          maxlength={32}
-          placeholder="Your display name"
-          autofocus
-          class="rounded-lg border border-slate-300 px-2 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300"
-        />
-        <button type="submit" class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors">
-          Save
-        </button>
-        <button type="button" class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors" onclick={() => { editingName = false; }}>
-          Cancel
-        </button>
+        <input type="text" bind:value={nameInput} maxlength={32} placeholder="Your display name" autofocus
+          class="rounded-lg border border-slate-300 px-2 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300" />
+        <button type="submit" class="rounded-lg bg-violet-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors">Save</button>
+        <button type="button" class="rounded-lg px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-100 transition-colors" onclick={() => { editingName = false; }}>Cancel</button>
       </form>
     {:else}
       <span class="text-xs text-slate-500">
-        {#if data?.user}
-          Signed in as <strong class="font-semibold text-slate-700">{cursorName}</strong>
-        {:else}
-          You are <strong class="font-semibold text-slate-700">{cursorName}</strong>
-        {/if}
+        {#if data?.user}Signed in as <strong class="font-semibold text-slate-700">{cursorName}</strong>
+        {:else}You are <strong class="font-semibold text-slate-700">{cursorName}</strong>{/if}
       </span>
       {#if !data?.user}
-        <button
-          type="button"
+        <button type="button"
           class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          onclick={() => { nameInput = cursorName; editingName = true; }}
-        >Change</button>
+          onclick={() => { nameInput = cursorName; editingName = true; }}>Change</button>
       {/if}
     {/if}
 
-    <!-- Spacer -->
     <div class="flex-1"></div>
 
-    <!-- Presence avatars (right) -->
+    <!-- Comment sidebar toggle -->
+    <button
+      type="button"
+      title="Toggle comments"
+      onclick={() => { showSidebar = !showSidebar; }}
+      class="relative flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors
+             {showSidebar ? 'bg-amber-100 text-amber-700' : 'text-slate-500 hover:bg-slate-100'}"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      Comments
+      {#if comments.length > 0}
+        <span class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full
+                     bg-amber-400 text-[9px] font-bold text-white">{comments.length}</span>
+      {/if}
+    </button>
+
+    <!-- Presence avatars -->
     {#if others.length > 0}
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 border-l border-slate-100 pl-3">
         <span class="mr-1 text-[10px] text-slate-400">
           {others.length === 1 ? '1 other' : `${others.length} others`} here
         </span>
-
         <div class="flex items-center -space-x-2">
           {#each others.slice(0, MAX_AVATARS) as other (other.connectionId)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="relative flex h-7 w-7 flex-shrink-0 cursor-default items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm transition-transform hover:z-10 hover:scale-110"
-              style="background: {other.color};"
+              style="background:{other.color};"
               onmouseenter={() => { tooltipId = other.connectionId; }}
               onmouseleave={() => { tooltipId = null; }}
             >
@@ -441,54 +447,77 @@
               {/if}
             </div>
           {/each}
-
           {#if others.length > MAX_AVATARS}
-            <div
-              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm"
-              title="{others.slice(MAX_AVATARS).map(o => o.name).join(', ')}"
-            >
+            <div class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm"
+                 title="{others.slice(MAX_AVATARS).map(o=>o.name).join(', ')}">
               +{others.length - MAX_AVATARS}
             </div>
           {/if}
         </div>
-
         <span class="relative ml-1 flex h-2 w-2">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
         </span>
       </div>
     {/if}
-
   </div>
 
-  <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
-  <input type="file" accept="image/*" bind:this={fileInput} class="hidden" onchange={handleFileChange} />
+  <!-- Editor body: editor + optional sidebar -->
+  <div class="flex min-h-[520px]">
 
-  {#if showSlashMenu}
-    <div
-      class="absolute z-20 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-      style="top: {menuPosition.top}px; left: {menuPosition.left}px;"
-    >
-      <div class="px-2 pt-2 pb-1">
-        <p class="px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Insert block</p>
-      </div>
-      <div class="p-1.5 pt-0">
-        {#each slashItems as item, index}
-          <button
-            type="button"
-            class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition-colors
-              {activeIndex === index ? 'bg-violet-50 text-violet-700' : 'hover:bg-slate-50'}"
-            onclick={() => insertSlashCommand(item)}
-            onmouseenter={() => { activeIndex = index; }}
-          >
-            <span class="w-5 text-center font-mono text-xs text-slate-400">{item.icon}</span>
-            {item.label}
-          </button>
-        {/each}
-      </div>
-      <div class="border-t border-slate-100 px-3 py-1.5">
-        <p class="text-[10px] text-slate-300">↑↓ navigate · Enter select · Esc close</p>
-      </div>
+    <!-- Editor area -->
+    <div class="relative min-w-0 flex-1 p-6">
+      <div bind:this={editorContainer} class="prose max-w-none min-h-[480px] outline-none"></div>
+      <input type="file" accept="image/*" bind:this={fileInput} class="hidden" onchange={handleFileChange} />
+
+      <!-- Comment popover (floats above selection) -->
+      {#if editor}
+        <CommentPopover
+          {editor}
+          pageId={data.page?.id ?? ''}
+          userName={cursorName}
+          onCreated={handleCommentCreated}
+        />
+      {/if}
+
+      <!-- Slash menu -->
+      {#if showSlashMenu}
+        <div class="absolute z-20 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+             style="top:{menuPosition.top}px;left:{menuPosition.left}px;">
+          <div class="px-2 pt-2 pb-1">
+            <p class="px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Insert block</p>
+          </div>
+          <div class="p-1.5 pt-0">
+            {#each slashItems as item, index}
+              <button type="button"
+                class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition-colors
+                  {activeIndex===index?'bg-violet-50 text-violet-700':'hover:bg-slate-50'}"
+                onclick={() => insertSlashCommand(item)}
+                onmouseenter={() => { activeIndex = index; }}>
+                <span class="w-5 text-center font-mono text-xs text-slate-400">{item.icon}</span>
+                {item.label}
+              </button>
+            {/each}
+          </div>
+          <div class="border-t border-slate-100 px-3 py-1.5">
+            <p class="text-[10px] text-slate-300">↑↓ navigate · Enter select · Esc close</p>
+          </div>
+        </div>
+      {/if}
     </div>
-  {/if}
+
+    <!-- Comments sidebar -->
+    {#if showSidebar}
+      <div class="w-72 flex-shrink-0 border-l border-slate-100 bg-slate-50/60">
+        <CommentsSidebar
+          {comments}
+          currentUserId={data?.user?.id ?? null}
+          {editor}
+          {activeCommentId}
+          onResolved={handleCommentResolved}
+          onDeleted={handleCommentDeleted}
+        />
+      </div>
+    {/if}
+  </div>
 </div>

@@ -6,6 +6,15 @@
 	"/api/auth/logout": [
 		"src/routes/api/auth/logout/+server.ts"
 	],
+	"/api/comments": [
+		"src/routes/api/comments/+server.ts"
+	],
+	"/api/comments/[id]": [
+		"src/routes/api/comments/[id]/+server.ts"
+	],
+	"/api/comments/[id]/resolve": [
+		"src/routes/api/comments/[id]/resolve/+server.ts"
+	],
 	"/api/files": [
 		"src/routes/api/files/+server.ts"
 	],

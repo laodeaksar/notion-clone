@@ -29,8 +29,10 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/auth" | "/api/auth/logout" | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | "/api/pages/[id]" | "/api/search" | "/api/upload" | "/auth" | "/files" | "/page" | "/page/[id]";
+		RouteId(): "/" | "/api" | "/api/auth" | "/api/auth/logout" | "/api/comments" | "/api/comments/[id]" | "/api/comments/[id]/resolve" | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | "/api/pages/[id]" | "/api/search" | "/api/upload" | "/auth" | "/files" | "/page" | "/page/[id]";
 		RouteParams(): {
+			"/api/comments/[id]": { id: string };
+			"/api/comments/[id]/resolve": { id: string };
 			"/api/pages/[id]": { id: string };
 			"/page/[id]": { id: string }
 		};
@@ -39,6 +41,9 @@ declare module "$app/types" {
 			"/api": { id?: string | undefined };
 			"/api/auth": Record<string, never>;
 			"/api/auth/logout": Record<string, never>;
+			"/api/comments": { id?: string | undefined };
+			"/api/comments/[id]": { id: string };
+			"/api/comments/[id]/resolve": { id: string };
 			"/api/files": Record<string, never>;
 			"/api/liveblocks-auth": Record<string, never>;
 			"/api/pages": { id?: string | undefined };
@@ -50,7 +55,7 @@ declare module "$app/types" {
 			"/page": { id?: string | undefined };
 			"/page/[id]": { id: string }
 		};
-		Pathname(): "/" | "/api/auth/logout" | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | `/api/pages/${string}` & {} | "/api/search" | "/api/upload" | "/auth" | "/files" | `/page/${string}` & {};
+		Pathname(): "/" | "/api/auth/logout" | "/api/comments" | `/api/comments/${string}` & {} | `/api/comments/${string}/resolve` & {} | "/api/files" | "/api/liveblocks-auth" | "/api/pages" | `/api/pages/${string}` & {} | "/api/search" | "/api/upload" | "/auth" | "/files" | `/page/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

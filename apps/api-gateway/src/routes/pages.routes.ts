@@ -146,3 +146,44 @@ pageRoutes.delete('/blocks/:id', requireAuth, async (c) => {
   });
   return c.json(data, status as any);
 });
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+pageRoutes.get('/comments', requireAuth, async (c) => {
+  const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const pageId  = c.req.query('pageId');
+  const { data, status } = await proxyJson(pageUrl, '/comments', {
+    query:   { pageId },
+    headers: serviceHeaders(c)
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.post('/comments', requireAuth, async (c) => {
+  const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const body    = await c.req.arrayBuffer();
+  const { data, status } = await proxyJson(pageUrl, '/comments', {
+    method:  'POST',
+    body:    Buffer.from(body).toString('utf-8'),
+    headers: { 'content-type': 'application/json', ...serviceHeaders(c) }
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.patch('/comments/:id/resolve', requireAuth, async (c) => {
+  const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const { data, status } = await proxyJson(pageUrl, `/comments/${c.req.param('id')}/resolve`, {
+    method:  'PATCH',
+    headers: serviceHeaders(c)
+  });
+  return c.json(data, status as any);
+});
+
+pageRoutes.delete('/comments/:id', requireAuth, async (c) => {
+  const pageUrl = getEnv(c, 'PAGE_SERVICE_URL', 'http://localhost:8082');
+  const { data, status } = await proxyJson(pageUrl, `/comments/${c.req.param('id')}`, {
+    method:  'DELETE',
+    headers: serviceHeaders(c)
+  });
+  return c.json(data, status as any);
+});

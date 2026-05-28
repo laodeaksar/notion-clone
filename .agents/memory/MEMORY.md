@@ -3,3 +3,4 @@
 - [Liveblocks migration](liveblocks-migration.md) — PartyKit replaced by Liveblocks; auth at /api/liveblocks-auth; LIVEBLOCKS_SECRET_KEY secret required
 - [Bug fixes applied](bug-fixes.md) — comprehensive bug fix session covering file-service startup, CORS PATCH, partial PUT, logout cleanup, missing Origin header on server-side auth fetches
 - [DB migration](db-migration.md) — better-auth tables (sessions/accounts/verifications) added in 0007; drizzle-kit can silently skip migrations with low timestamps; apply via psql directly
+- [Inline comments](inline-comments.md) — TipTap CommentMark stores commentId in Yjs doc; metadata in page_comments table (migration 0008); routes in page-service /comments + gateway proxy
