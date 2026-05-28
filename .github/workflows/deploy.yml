@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Run all jobs'
+        required: false
+        default: 'false'
+        type: boolean
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -11,7 +17,8 @@ concurrency:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Path-filtered deploy — only changed services are redeployed on each push.
-# workflow_dispatch always deploys everything (full redeploy).
+# workflow_dispatch with force_all=true deploys everything (full redeploy).
+# workflow_dispatch with force_all=false (default) still uses path filtering.
 #
 # Deploy order (dependency graph):
 #
@@ -46,14 +53,14 @@ jobs:
     name: Detect changed paths
     runs-on: ubuntu-latest
     outputs:
-      db:      ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.db }}
-      auth:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.auth }}
-      page:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.page }}
-      block:   ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.block }}
-      file:    ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.file }}
-      partykit: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.partykit }}
-      gateway: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.gateway }}
-      web:     ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.web }}
+      db:       ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.db }}
+      auth:     ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.auth }}
+      page:     ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.page }}
+      block:    ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.block }}
+      file:     ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.file }}
+      partykit: ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.partykit }}
+      gateway:  ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.gateway }}
+      web:      ${{ (github.event_name == 'workflow_dispatch' && inputs.force_all) && 'true' || steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v4
 
