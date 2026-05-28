@@ -25,28 +25,42 @@
     initials: string;
   };
 
+  type Toast = {
+    id:       number;
+    name:     string;
+    initials: string;
+    color:    string;
+    kind:     'join' | 'leave';
+    visible:  boolean;
+  };
+
   let { data }: { data: PageData } = $props();
 
-  let editorContainer: HTMLDivElement | null   = null;
-  let fileInput: HTMLInputElement | null        = null;
-  let editor: Editor | null                     = null;
-  let provider: LiveblocksProvider | null       = null;
-  let persistence: IndexeddbPersistence | null  = null;
+  let editorContainer: HTMLDivElement | null        = null;
+  let fileInput: HTMLInputElement | null             = null;
+  let editor: Editor | null                          = null;
+  let provider: LiveblocksProvider | null            = null;
+  let persistence: IndexeddbPersistence | null       = null;
   let client: ReturnType<typeof createClient> | null = null;
-  let leaveRoom: (() => void) | null            = null;
+  let leaveRoom: (() => void) | null                 = null;
 
   let showSlashMenu = $state(false);
   let activeIndex   = $state(0);
   let menuPosition  = $state({ top: 0, left: 0 });
 
-  let cursorName:  string     = $state('Anonymous');
-  let cursorColor: string     = $state('#7C3AED');
-  let editingName: boolean    = $state(false);
-  let nameInput:   string     = $state('');
+  let cursorName:  string      = $state('Anonymous');
+  let cursorColor: string      = $state('#7C3AED');
+  let editingName: boolean     = $state(false);
+  let nameInput:   string      = $state('');
   let others:      OtherUser[] = $state([]);
   let tooltipId:   number | null = $state(null);
+  let toasts:      Toast[]     = $state([]);
 
-  const MAX_AVATARS = 3;
+  let toastCounter = 0;
+
+  const MAX_AVATARS   = 3;
+  const TOAST_TIMEOUT = 3500;
+  const FADE_DELAY    = 300;
 
   const CURSOR_COLORS = [
     '#7C3AED', '#2563EB', '#059669', '#D97706',
@@ -69,15 +83,38 @@
     return CURSOR_COLORS[Math.abs(hashStr(id)) % CURSOR_COLORS.length];
   }
 
+  function pushToast(name: string, color: string, kind: 'join' | 'leave') {
+    const id: number = ++toastCounter;
+    const toast: Toast = { id, name, initials: getInitials(name), color, kind, visible: false };
+    toasts = [...toasts, toast];
+
+    // Trigger enter animation on next tick
+    setTimeout(() => {
+      toasts = toasts.map(t => t.id === id ? { ...t, visible: true } : t);
+    }, 16);
+
+    // Start exit animation
+    setTimeout(() => {
+      toasts = toasts.map(t => t.id === id ? { ...t, visible: false } : t);
+      // Remove after fade-out
+      setTimeout(() => {
+        toasts = toasts.filter(t => t.id !== id);
+      }, FADE_DELAY);
+    }, TOAST_TIMEOUT);
+  }
+
+  function dismissToast(id: number) {
+    toasts = toasts.map(t => t.id === id ? { ...t, visible: false } : t);
+    setTimeout(() => { toasts = toasts.filter(t => t.id !== id); }, FADE_DELAY);
+  }
+
   function initIdentity() {
     const loggedInUser = data?.user as { id: string; email: string; name: string | null } | null | undefined;
-
     if (loggedInUser) {
       cursorName  = loggedInUser.name ?? loggedInUser.email;
       cursorColor = colorForId(loggedInUser.id);
       return;
     }
-
     if (typeof sessionStorage === 'undefined') return;
     const stored = sessionStorage.getItem('editor-identity');
     if (stored) {
@@ -190,17 +227,46 @@
     const { room, leave } = client.enterRoom(pageId);
     leaveRoom = leave;
 
-    // Subscribe to others presence
+    // Track previous connection IDs to detect joins / leaves
+    let prevIds = new Set<number>();
+    let isFirstUpdate = true;
+
     const unsubOthers = room.subscribe('others', (lbOthers) => {
-      others = lbOthers.map((o) => {
+      const nextMap = new Map<number, OtherUser>();
+
+      for (const o of lbOthers) {
         const name = (o.info as any)?.name ?? `User ${o.connectionId}`;
-        return {
+        const color = colorForId(String(o.id ?? o.connectionId));
+        nextMap.set(o.connectionId, {
           connectionId: o.connectionId,
           name,
-          color:    colorForId(String(o.id ?? o.connectionId)),
+          color,
           initials: getInitials(name)
-        };
-      });
+        });
+      }
+
+      if (!isFirstUpdate) {
+        // Detect joins
+        for (const [connId, user] of nextMap) {
+          if (!prevIds.has(connId)) {
+            pushToast(user.name, user.color, 'join');
+          }
+        }
+        // Detect leaves
+        for (const connId of prevIds) {
+          if (!nextMap.has(connId)) {
+            // Find name from previous others list
+            const prev = others.find(o => o.connectionId === connId);
+            const name = prev?.name ?? 'Someone';
+            const color = prev?.color ?? '#94A3B8';
+            pushToast(name, color, 'leave');
+          }
+        }
+      }
+
+      isFirstUpdate = false;
+      prevIds = new Set(nextMap.keys());
+      others = Array.from(nextMap.values());
     });
 
     provider = new LiveblocksProvider(room, ydoc);
@@ -263,6 +329,49 @@
   });
 </script>
 
+<!-- Toast portal (fixed, bottom-right) -->
+<div class="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-2">
+  {#each toasts as toast (toast.id)}
+    <div
+      class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg
+             transition-all duration-300 ease-out"
+      style="
+        opacity: {toast.visible ? 1 : 0};
+        transform: translateY({toast.visible ? 0 : 12}px) scale({toast.visible ? 1 : 0.95});
+      "
+    >
+      <!-- Avatar -->
+      <div
+        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
+        style="background: {toast.color};"
+      >
+        {toast.initials}
+      </div>
+
+      <!-- Message -->
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-slate-800">{toast.name}</p>
+        <p class="text-xs {toast.kind === 'join' ? 'text-emerald-600' : 'text-slate-400'}">
+          {toast.kind === 'join' ? '● joined this page' : '○ left this page'}
+        </p>
+      </div>
+
+      <!-- Dismiss button -->
+      <button
+        type="button"
+        class="ml-1 flex-shrink-0 rounded-lg p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors"
+        onclick={() => dismissToast(toast.id)}
+        aria-label="Dismiss"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  {/each}
+</div>
+
 <div class="relative rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
 
   <!-- Identity bar -->
@@ -310,12 +419,10 @@
     <!-- Presence avatars (right) -->
     {#if others.length > 0}
       <div class="flex items-center gap-1">
-        <!-- "X viewing" label -->
         <span class="mr-1 text-[10px] text-slate-400">
           {others.length === 1 ? '1 other' : `${others.length} others`} here
         </span>
 
-        <!-- Avatar stack -->
         <div class="flex items-center -space-x-2">
           {#each others.slice(0, MAX_AVATARS) as other (other.connectionId)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -326,21 +433,15 @@
               onmouseleave={() => { tooltipId = null; }}
             >
               {other.initials}
-
-              <!-- Tooltip -->
               {#if tooltipId === other.connectionId}
-                <div
-                  class="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-md"
-                >
+                <div class="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-md">
                   {other.name}
-                  <!-- Arrow -->
                   <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
                 </div>
               {/if}
             </div>
           {/each}
 
-          <!-- Overflow badge -->
           {#if others.length > MAX_AVATARS}
             <div
               class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[10px] font-bold text-slate-600 shadow-sm"
@@ -351,7 +452,6 @@
           {/if}
         </div>
 
-        <!-- Live pulse dot -->
         <span class="relative ml-1 flex h-2 w-2">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
