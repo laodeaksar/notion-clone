@@ -55,7 +55,13 @@
   );
 </script>
 
-<div class="w-64 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden" onclick={(e) => e.stopPropagation()}>
+<div
+  class="w-64 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden"
+  onclick={(e) => e.stopPropagation()}
+  role="dialog"
+  tabindex="-1"
+  onkeydown={(e) => e.stopPropagation()}
+>
   <!-- Search -->
   <div class="border-b border-slate-100 px-3 py-2">
     <input
