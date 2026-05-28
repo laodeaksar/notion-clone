@@ -20,7 +20,7 @@ export {
  * Using postgres-js instead of the Neon HTTP driver so that the same package
  * works in:
  *   - wrangler dev (local CF Workers emulation via miniflare + nodejs_compat)
- *   - Node.js services (hocuspocus, migration scripts)
+ *   - Node.js services (migration scripts)
  *
  * max:1 limits the connection pool to a single connection, which is safe for
  * per-request clients in serverless/edge environments.

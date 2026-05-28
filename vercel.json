@@ -5,7 +5,6 @@
   "framework": "sveltekit",
   "rootDirectory": "apps/web",
   "env": {
-    "PUBLIC_API_GATEWAY_URL": "@public_api_gateway_url",
-    "PUBLIC_PARTYKIT_HOST":   "@public_partykit_host"
+    "PUBLIC_API_GATEWAY_URL": "@public_api_gateway_url"
   }
 }

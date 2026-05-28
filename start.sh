@@ -65,12 +65,6 @@ echo "Starting microservices..."
 (cd services/file-service  && PORT=8084 node --import tsx src/server.node.ts 2>&1 | sed 's/^/[file]    /') &
 (cd apps/api-gateway       && PORT=8080 node --import tsx src/server.node.ts 2>&1 | sed 's/^/[gateway] /') &
 
-# PartyKit uses y-websocket as a dev backend on port 1999 (same Yjs protocol).
-# partykit dev uses workerd/miniflare which can't start in Replit sandbox;
-# y-websocket is a plain Node.js server that speaks the same Yjs protocol.
-# YPartyKitProvider on the client connects normally since it's based on y-websocket.
-(cd services/partykit-service && HOST=0.0.0.0 PORT=1999 node node_modules/y-websocket/bin/server.cjs 2>&1 | sed 's/^/[partykit]/') &
-
 # Wait for backend services to be ready
 echo "Waiting for services to start..."
 sleep 5

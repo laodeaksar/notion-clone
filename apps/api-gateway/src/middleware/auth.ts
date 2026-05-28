@@ -7,7 +7,7 @@ import { getEnv } from '../config';
  * GET /api/auth/get-session endpoint with the session token as a Bearer token.
  *
  * Token source priority:
- *   1. Authorization: Bearer <token> header (API clients, hocuspocus)
+ *   1. Authorization: Bearer <token> header (API clients, Liveblocks)
  *   2. better-auth.session_token cookie (browser clients)
  *
  * On success, stores the validated user in `c.var.jwtPayload`:

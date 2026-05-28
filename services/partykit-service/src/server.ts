@@ -1,61 +1,75 @@
-import type * as Party from "partykit/server";
-import { onConnect } from "y-partykit";
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { Liveblocks } from '@liveblocks/node';
+
+const app = new Hono();
 
 const AUTH_SERVICE_URL =
-  (process.env.AUTH_SERVICE_URL as string | undefined) ?? "http://localhost:8083";
-const AUTH_REQUIRED =
-  (process.env.AUTH_REQUIRED as string | undefined) !== "false";
+  process.env.AUTH_SERVICE_URL ?? 'http://localhost:8083';
 
-export default class DocumentServer implements Party.Server {
-  constructor(readonly room: Party.Room) {}
+const LIVEBLOCKS_SECRET_KEY = process.env.LIVEBLOCKS_SECRET_KEY ?? '';
 
-  static async onBeforeConnect(request: Party.Request): Promise<Party.Request | Response> {
-    if (!AUTH_REQUIRED) return request;
+app.post('/liveblocks-auth', async (c) => {
+  const token = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
 
-    const token = new URL(request.url).searchParams.get("token");
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized — no token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    try {
-      const res = await fetch(`${AUTH_SERVICE_URL}/api/auth/get-session`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000)
-      });
-
-      if (!res.ok) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized — invalid session" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      const data = (await res.json()) as {
-        user?: { id: string; email: string };
-        session?: { id: string };
-      };
-
-      if (!data.user || !data.session) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized — no active session" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      return request;
-    } catch {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized — auth service unreachable" }),
-        { status: 503, headers: { "Content-Type": "application/json" } }
-      );
-    }
+  if (!token) {
+    return c.json({ error: 'Unauthorized — no token' }, 401);
   }
 
-  onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-    return onConnect(conn, this.room);
-  }
-}
+  let user: { id: string; name?: string | null; email: string } | null = null;
 
-DocumentServer satisfies Party.Worker;
+  try {
+    const res = await fetch(`${AUTH_SERVICE_URL}/api/auth/get-session`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!res.ok) return c.json({ error: 'Unauthorized — invalid session' }, 401);
+
+    const data = (await res.json()) as {
+      user?: { id: string; email: string; name?: string | null };
+      session?: { id: string };
+    };
+
+    if (!data.user || !data.session) {
+      return c.json({ error: 'Unauthorized — no active session' }, 401);
+    }
+
+    user = data.user;
+  } catch {
+    return c.json({ error: 'Unauthorized — auth service unreachable' }, 503);
+  }
+
+  const liveblocks = new Liveblocks({ secret: LIVEBLOCKS_SECRET_KEY });
+
+  const body = await c.req.json().catch(() => ({}));
+  const room = body.room as string | undefined;
+
+  if (!room) {
+    return c.json({ error: 'Missing room' }, 400);
+  }
+
+  const { status, body: lbBody } = await liveblocks.identifyUser(
+    {
+      userId: user.id,
+      groupIds: [],
+    },
+    {
+      userInfo: {
+        name: user.name ?? user.email,
+        email: user.email,
+      },
+    }
+  );
+
+  return new Response(lbBody, {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+});
+
+app.get('/health', (c) => c.json({ ok: true }));
+
+const PORT = parseInt(process.env.PORT ?? '1999');
+serve({ fetch: app.fetch, port: PORT });
+console.log(`[liveblocks-service] listening on http://localhost:${PORT}`);

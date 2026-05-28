@@ -7,6 +7,6 @@ pages_build_output_dir = ".svelte-kit/cloudflare"
 [vars]
 # Set these in the Cloudflare Pages dashboard → Settings → Environment Variables
 # PUBLIC_API_GATEWAY_URL = "https://your-api-gateway.workers.dev"
-# PUBLIC_PARTYKIT_HOST   = "notion-clone.your-username.partykit.dev"
 # API_GATEWAY_URL        = "https://your-api-gateway.workers.dev"
 # JWT_SECRET             = "<same secret as auth-service>"
+# LIVEBLOCKS_SECRET_KEY  = "<from liveblocks.io dashboard>"

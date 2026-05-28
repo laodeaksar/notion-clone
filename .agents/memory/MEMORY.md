@@ -1,5 +1,5 @@
 - [Env var strategy](env-strategy.md) — all private env vars use platform.env (CF) + process.env fallback via getEnv() helper; never $env/static or $env/dynamic
 - [Service startup](service-startup.md) — ALL services now use Node.js server.node.ts (not wrangler dev); wrangler can't reach helium:5432 via cloudflare:sockets
-- [PartyKit dev workaround](partykit-dev.md) — partykit dev uses workerd/miniflare which fails in Replit background; use y-websocket server.cjs on port 1999 in dev instead
-- [Bug fixes applied](bug-fixes.md) — comprehensive bug fix session covering file-service startup, hocuspocus token, CORS PATCH, partial PUT, logout cleanup
+- [Liveblocks migration](liveblocks-migration.md) — PartyKit replaced by Liveblocks; auth at /api/liveblocks-auth; LIVEBLOCKS_SECRET_KEY secret required
+- [Bug fixes applied](bug-fixes.md) — comprehensive bug fix session covering file-service startup, CORS PATCH, partial PUT, logout cleanup, missing Origin header on server-side auth fetches
 - [DB migration](db-migration.md) — better-auth tables (sessions/accounts/verifications) added in 0007; drizzle-kit can silently skip migrations with low timestamps; apply via psql directly

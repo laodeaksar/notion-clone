@@ -9,6 +9,9 @@
 	"/api/files": [
 		"src/routes/api/files/+server.ts"
 	],
+	"/api/liveblocks-auth": [
+		"src/routes/api/liveblocks-auth/+server.ts"
+	],
 	"/api/pages": [
 		"src/routes/api/pages/+server.ts"
 	],

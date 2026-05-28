@@ -10,13 +10,12 @@ declare global {
     interface PageData {
       user?:         { id: string; email: string; name: string | null } | null;
       pages?:        Array<{ id: string; title: string; parentId: string | null }>;
-      partyKitHost?: string;
+      sessionToken?: string | null;
     }
     interface Platform {
       env: {
         API_GATEWAY_URL:       string;
         JWT_SECRET:            string;
-        PUBLIC_PARTYKIT_HOST?: string;
         PAGE_SERVICE_URL?:     string;
         AUTH_SERVICE_URL?:     string;
         BLOCK_SERVICE_URL?:    string;

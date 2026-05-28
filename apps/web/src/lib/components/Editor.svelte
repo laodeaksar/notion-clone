@@ -7,24 +7,25 @@
   import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
   import Link from '@tiptap/extension-link';
   import Image from '@tiptap/extension-image';
-  import YPartyKitProvider from 'y-partykit/provider';
+  import { createClient } from '@liveblocks/client';
+  import LiveblocksProvider from '@liveblocks/yjs';
   import * as Y from 'yjs';
   import { IndexeddbPersistence } from 'y-indexeddb';
 
   interface PageData {
     page?:         { id: string; title?: string } | null;
     user?:         { id: string; email: string; name: string | null } | null;
-    partyKitHost?: string;
     sessionToken?: string | null;
   }
 
   let { data }: { data: PageData } = $props();
 
-  let editorContainer: HTMLDivElement | null      = null;
-  let fileInput: HTMLInputElement | null           = null;
-  let editor: Editor | null                        = null;
-  let provider: YPartyKitProvider | null          = null;
-  let persistence: IndexeddbPersistence | null    = null;
+  let editorContainer: HTMLDivElement | null   = null;
+  let fileInput: HTMLInputElement | null        = null;
+  let editor: Editor | null                     = null;
+  let provider: LiveblocksProvider | null       = null;
+  let persistence: IndexeddbPersistence | null  = null;
+  let client: ReturnType<typeof createClient> | null = null;
 
   let showSlashMenu = $state(false);
   let activeIndex   = $state(0);
@@ -153,12 +154,20 @@
 
     persistence = new IndexeddbPersistence(`page-${pageId}`, ydoc);
 
-    provider = new YPartyKitProvider(
-      data.partyKitHost ?? 'localhost:1999',
-      pageId,
-      ydoc,
-      { params: { token: data.sessionToken ?? '' } }
-    );
+    client = createClient({
+      authEndpoint: async () => {
+        const res = await fetch('/api/liveblocks-auth', {
+          method:  'POST',
+          headers: { 'content-type': 'application/json' },
+          body:    JSON.stringify({ room: pageId })
+        });
+        return res.json();
+      }
+    });
+
+    const { room, leave } = client.enterRoom(pageId);
+
+    provider = new LiveblocksProvider(room, ydoc);
 
     provider.awareness.setLocalStateField('user', { name: cursorName, color: cursorColor });
 
@@ -205,6 +214,10 @@
       onUpdate:          updateSlashMenu,
       onSelectionUpdate: updateSlashMenu
     });
+
+    return () => {
+      leave();
+    };
   });
 
   onDestroy(() => {
