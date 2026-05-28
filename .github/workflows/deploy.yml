@@ -24,24 +24,24 @@ concurrency:
 #
 #   changes (detect)
 #       └──▶ migrate-db
-#                └──▶ deploy-auth  ──┐
-#                └──▶ deploy-page  ──┤
-#                └──▶ deploy-block ──┤──▶ deploy-gateway ──▶ deploy-web
-#                └──▶ deploy-file  ──┤
-#                └──▶ deploy-hocus ──┘
+#                └──▶ deploy-auth    ──┐
+#                └──▶ deploy-page    ──┤
+#                └──▶ deploy-block   ──┤──▶ deploy-gateway ──▶ deploy-web
+#                └──▶ deploy-file    ──┤
+#                └──▶ deploy-partykit──┘  (disabled — migrated to Liveblocks)
 #
 # Path → job mapping (each filter also triggers on shared packages):
 #
-#   packages/db/**                    → migrate-db + all DB-using services
-#   packages/shared/**                → auth, page, block, file, gateway
-#   packages/ui/**                    → web
-#   services/auth-service/**          → deploy-auth
-#   services/page-service/**          → deploy-page
-#   services/block-service/**         → deploy-block
-#   services/file-service/**          → deploy-file
-#   services/hocuspocus-service/worker/** → deploy-hocus
-#   apps/api-gateway/**               → deploy-gateway
-#   apps/web/**                       → deploy-web
+#   packages/db/**           → migrate-db + all DB-using services
+#   packages/shared/**       → auth, page, block, file, gateway
+#   packages/ui/**           → web
+#   services/auth-service/** → deploy-auth
+#   services/page-service/** → deploy-page
+#   services/block-service/**→ deploy-block
+#   services/file-service/** → deploy-file
+#   services/partykit-service/**→ deploy-partykit
+#   apps/api-gateway/**      → deploy-gateway
+#   apps/web/**              → deploy-web
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -400,8 +400,10 @@ jobs:
   #
   # Required GitHub Variables:
   #   PUBLIC_API_GATEWAY_URL — e.g. https://notion-clone-api.YOUR-SUBDOMAIN.workers.dev
-  #   PUBLIC_HOCUSPOCUS_URL  — e.g. wss://hocuspocus-proxy.YOUR-SUBDOMAIN.workers.dev
   #   API_GATEWAY_URL        — same as PUBLIC_API_GATEWAY_URL (used server-side by SvelteKit)
+  #
+  # Required Vercel Environment Variables (set in Vercel project settings):
+  #   LIVEBLOCKS_SECRET_KEY  — from liveblocks.io dashboard (used by /api/liveblocks-auth)
   deploy-web:
     name: Deploy web → Vercel
     runs-on: ubuntu-latest
@@ -433,7 +435,6 @@ jobs:
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           PUBLIC_API_GATEWAY_URL: ${{ vars.PUBLIC_API_GATEWAY_URL }}
-          PUBLIC_HOCUSPOCUS_URL:  ${{ vars.PUBLIC_HOCUSPOCUS_URL }}
           API_GATEWAY_URL:        ${{ vars.API_GATEWAY_URL }}
 
       - name: Deploy to Vercel
