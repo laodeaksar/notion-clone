@@ -20,7 +20,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     try {
       const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
       const res = await event.fetch(`${API_GATEWAY_URL}/auth/get-session`, {
-        headers: { Authorization: `Bearer ${sessionToken}`, origin: 'http://localhost:5000' }
+        headers: { Authorization: `Bearer ${sessionToken}`, origin: event.url.origin }
       });
 
       if (res.ok) {

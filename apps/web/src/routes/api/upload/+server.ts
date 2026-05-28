@@ -1,16 +1,11 @@
 import { getEnv } from '$lib/server/env';
-import { signServerJWT } from '$lib/server/jwt';
 import type { RequestEvent } from '@sveltejs/kit';
 
-function getToken(event: RequestEvent): Promise<string> {
-  const userToken = event.cookies.get('better-auth.session_token');
-  if (userToken) return Promise.resolve(userToken);
-  return signServerJWT(getEnv(event.platform, 'JWT_SECRET'));
-}
-
 export async function POST(event: RequestEvent) {
+  const sessionToken = event.cookies.get('better-auth.session_token');
+  if (!sessionToken) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } });
+
   const { request }     = event;
-  const token           = await getToken(event);
   const API_GATEWAY_URL = getEnv(event.platform, 'API_GATEWAY_URL');
   const contentType     = request.headers.get('content-type') ?? '';
 
@@ -18,7 +13,7 @@ export async function POST(event: RequestEvent) {
     const form = await request.formData();
     const res  = await fetch(`${API_GATEWAY_URL}/upload`, {
       method:  'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${sessionToken}` },
       body:    form
     });
     const body = await res.text();
@@ -26,15 +21,11 @@ export async function POST(event: RequestEvent) {
   }
 
   const json = await request.json().catch(() => null);
-  if (!json) {
-    return new Response(JSON.stringify({ error: 'Invalid body' }), {
-      status: 400, headers: { 'content-type': 'application/json' }
-    });
-  }
+  if (!json) return new Response(JSON.stringify({ error: 'Invalid body' }), { status: 400, headers: { 'content-type': 'application/json' } });
 
-  const res = await fetch(`${API_GATEWAY_URL}/upload`, {
+  const res  = await fetch(`${API_GATEWAY_URL}/upload`, {
     method:  'POST',
-    headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${sessionToken}` },
     body:    JSON.stringify(json)
   });
   const body = await res.text();

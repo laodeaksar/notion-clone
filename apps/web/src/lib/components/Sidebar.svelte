@@ -25,7 +25,7 @@
   let { initialPages }: { initialPages: Page[] } = $props();
 
   // ── Flat page list (source of truth) ──────────────────────────────────────
-  let pages: Page[] = $state([...initialPages]);
+  let pages: Page[] = $state<Page[]>([]);
 
   $effect(() => {
     pages = [...initialPages];

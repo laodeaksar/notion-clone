@@ -106,7 +106,9 @@ export const blocks = pgTable('blocks', {
   order:     integer('order').notNull(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull()
-});
+}, (t) => [
+  index('idx_blocks_page_id').on(t.pageId)
+]);
 
 export const userStorageQuotas = pgTable('user_storage_quotas', {
   userId:     varchar('user_id', { length: 36 }).primaryKey()

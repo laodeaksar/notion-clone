@@ -17,6 +17,7 @@ export type Page = {
   id:        string;
   title:     string;
   parentId:  string | null;
+  userId:    string | null;
   createdAt: Date;
   updatedAt: Date;
 };

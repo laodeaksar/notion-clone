@@ -28,7 +28,7 @@ function setSessionCookie(
 }
 
 export const actions: Actions = {
-  login: async ({ request, cookies, fetch, platform }) => {
+  login: async ({ request, cookies, fetch, platform, url }) => {
     const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
     const email    = data.get('email')?.toString().trim() ?? '';
@@ -40,7 +40,7 @@ export const actions: Actions = {
 
     const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-in/email`, {
       method:  'POST',
-      headers: { 'content-type': 'application/json', 'origin': 'http://localhost:5000' },
+      headers: { 'content-type': 'application/json', 'origin': url.origin },
       body:    JSON.stringify({ email, password })
     });
 
@@ -59,7 +59,7 @@ export const actions: Actions = {
     throw redirect(302, '/');
   },
 
-  register: async ({ request, cookies, fetch, platform }) => {
+  register: async ({ request, cookies, fetch, platform, url }) => {
     const API_GATEWAY_URL = getEnv(platform, 'API_GATEWAY_URL');
     const data     = await request.formData();
     const email    = data.get('email')?.toString().trim() ?? '';
@@ -75,7 +75,7 @@ export const actions: Actions = {
 
     const res  = await fetch(`${API_GATEWAY_URL}/auth/sign-up/email`, {
       method:  'POST',
-      headers: { 'content-type': 'application/json', 'origin': 'http://localhost:5000' },
+      headers: { 'content-type': 'application/json', 'origin': url.origin },
       body:    JSON.stringify({ email, password, name: name ?? email.split('@')[0] })
     });
 

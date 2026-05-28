@@ -64,6 +64,13 @@
       "when": 1748390400000,
       "tag": "0008_add_page_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1748476800000,
+      "tag": "0009_add_blocks_page_id_index",
+      "breakpoints": true
     }
   ]
 }
